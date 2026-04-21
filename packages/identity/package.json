@@ -1,0 +1,13 @@
+{
+  "name": "@swish/identity",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@swish/core": "1.0.0",
+    "react": "^18.2.0"
+  }
+}

@@ -1,0 +1,24 @@
+# === SECRETS & MOTS DE PASSE ===
+.env
+.env.local
+.env.*.local
+
+# === DÉPENDANCES ===
+node_modules/
+.pnp
+.pnp.js
+
+# === DOSSIERS DE BUILD (Générés automatiquement) ===
+dist/
+build/
+out/
+
+# === LOGS & DEBUG ===
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+
+# === FICHIERS SYSTÈME (Mac/Windows) ===
+.DS_Store
+Thumbs.db
