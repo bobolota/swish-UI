@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import TournamentManager from './pages/tournament'; // L'index.jsx de ton tournoi
+import TeamPlayersPage from './pages/tournament/TeamPlayersPage';
 
 export default function App() {
   return (

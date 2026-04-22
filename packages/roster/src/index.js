@@ -5,4 +5,4 @@ export * from './InvitePage';
 
 export { TeamCard } from './TeamCard';
 export { ManualTeamDialog } from './ManualTeamDialog';
-export { UseTeamPlayers } from './UseTeamPlayers';
+export { useTeamPlayers } from './useTeamPlayers';

@@ -35,7 +35,8 @@ export function useTournamentTeams(tournamentId) {
       
       
       const formattedTeams = data.map(reg => ({
-        id: reg.id,
+        id: reg.id, // ID de l'inscription (pour changer le statut)
+        teamId: reg.team_id, // ✅ NOUVEAU : Le VRAI ID de l'équipe (pour voir les joueurs)
         status: reg.status || 'pending',
         hasPaid: reg.payment_status === 'paid' || reg.payment_status === 'succeeded',
         name: reg.teams?.name || "Équipe sans nom",
@@ -78,41 +79,47 @@ export function useTournamentTeams(tournamentId) {
   }
 };
 
-  // NOUVEAU : Fonction pour gérer le paiement
-  const updatePaymentStatus = async (registrationId, isPaid) => {
-    const newPaymentStatus = isPaid ? 'paid' : 'unpaid';
-    
-    // LOGIQUE MISE À JOUR : 
-    // Si payé -> on force 'validated'
-    // Si non payé -> on force le retour à 'pending'
-    const newStatus = isPaid ? 'validated' : 'pending';
-    
-    const updates = { 
+  // Dans packages/competition/src/useTournamentTeams.js
+
+const updatePaymentStatus = async (registrationId, isPaid) => {
+  const newPaymentStatus = isPaid ? 'paid' : 'unpaid';
+  const newStatus = isPaid ? 'validated' : 'pending';
+  
+  // ✅ ON PRÉPARE LA DATE ICI
+  const now = new Date().toISOString();
+  const paidAt = isPaid ? now : null;
+
+  const teamToUpdate = teams.find(t => t.id === registrationId);
+  const actualTeamId = teamToUpdate?.teamId;
+
+  // 1. Update UI Equipe
+  setTeams(prev => prev.map(t => 
+    t.id === registrationId ? { ...t, hasPaid: isPaid, status: newStatus } : t
+  ));
+
+  // 2. Update Supabase Equipe
+  const { error: teamError } = await supabase
+    .from('tournament_registrations')
+    .update({ 
       payment_status: newPaymentStatus,
-      status: newStatus 
-    };
+      status: newStatus,
+      paid_at: paidAt // On met aussi à jour la date de l'équipe
+    })
+    .eq('id', registrationId);
 
-    // 1. Mise à jour visuelle immédiate (UI)
-    setTeams(prev => prev.map(t => 
-      t.id === registrationId 
-        ? { ...t, hasPaid: isPaid, status: newStatus } 
-        : t
-    ));
-
-    // 2. Mise à jour Supabase
-    const { error } = await supabase
-      .from('tournament_registrations')
-      .update(updates)
-      .eq('id', registrationId);
-
-    if (error) {
-      console.error("Erreur paiement:", error);
-      toast.error("Erreur lors de la mise à jour");
-      fetchTeams(); // Annule et rafraîchit si erreur
-    } else {
-      toast.success(isPaid ? "Équipe payée et validée !" : "Paiement annulé : retour en attente");
-    }
-  };
+  // 3. SYNCHRO JOUEURS (C'est ici qu'on ajoute la date)
+  if (!teamError && isPaid && actualTeamId) {
+    await supabase
+      .from('players')
+      .update({ 
+        is_paid: true, 
+        paid_at: now // ✅ ON AJOUTE LA DATE POUR CHAQUE JOUEUR ICI
+      })
+      .eq('team_id', actualTeamId);
+      
+    toast.success("Équipe et joueurs validés avec date de paiement !");
+  }
+};
 
   const addManualTeam = async (teamName, captainName) => {
     // 1. Création de l'équipe

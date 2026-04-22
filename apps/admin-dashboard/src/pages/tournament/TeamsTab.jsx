@@ -50,7 +50,14 @@ export default function TeamsTab({ tournamentId }) {
           columns={TEAM_COLUMNS}
           items={teams}
           onStatusChange={updateTeamStatus}
-          renderCard={(team) => <TeamCard team={team} onPaymentChange={updatePaymentStatus} onClick={() => handleCardClick(team)} />} 
+          renderCard={(team) => (
+            <TeamCard 
+              team={team} 
+              onPaymentChange={updatePaymentStatus}
+              // ✅ MODIFICATION ICI : On utilise team.teamId pour l'URL
+              onClick={() => navigate(`/tournament/${tournamentId}/team/${team.teamId}`)} 
+            />
+          )} 
         />
       </div>
     </div>

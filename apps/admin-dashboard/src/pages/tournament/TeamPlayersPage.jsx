@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTeamPlayers } from '@swish/roster'; // Ajuste l'import selon ton architecture
 import { PaymentStatusToggle, Button, Input } from '@swish/ui';
-import { ArrowLeft, UserPlus } from 'lucide-react'; // Icônes
+import { ArrowLeft, UserPlus, Trash2 } from 'lucide-react'; // Icônes
+
 
 export default function TeamPlayersPage() {
   const { tournamentId, teamId } = useParams(); // Récupère les IDs depuis l'URL
   const navigate = useNavigate();
-  const { team, players, isLoading, addPlayer, togglePlayerPayment } = useTeamPlayers(teamId);
+  const { team, players, isLoading, addPlayer, togglePlayerPayment, deletePlayer } = useTeamPlayers(teamId);
   const [newPlayerName, setNewPlayerName] = useState("");
 
   const handleAddPlayer = (e) => {
@@ -60,15 +61,35 @@ export default function TeamPlayersPage() {
             </div>
           ) : (
             players.map((player) => (
-              <div key={player.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                <span className="font-medium text-slate-700">{player.name}</span>
-                
-                {/* Notre Lego réutilisé ! */}
-                <PaymentStatusToggle 
-                  isPaid={player.is_paid} 
-                  onChange={() => togglePlayerPayment(player.id, player.is_paid)} 
-                />
-              </div>
+              <div key={player.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group">
+  <div className="flex flex-col"> {/* ✅ Ajout d'un flex-col pour superposer nom et date */}
+    <span className="font-medium text-slate-700">{player.name}</span>
+    
+    {/* ✅ AFFICHAGE DE LA DATE SI PAYÉ */}
+    {player.is_paid && player.paid_at && (
+      <span className="text-[10px] text-green-600 font-bold">
+        Payé le {new Date(player.paid_at).toLocaleDateString('fr-FR')}
+      </span>
+    )}
+  </div>
+  
+  <div className="flex items-center gap-4">
+    <PaymentStatusToggle 
+      isPaid={player.is_paid} 
+      onChange={() => togglePlayerPayment(player.id, player.is_paid)} 
+    />
+
+    {/* NOUVEAU : Bouton supprimer (invisible par défaut, apparaît au survol via 'group-hover') */}
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={() => deletePlayer(player.id)}
+      className="text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+    >
+      <Trash2 className="w-4 h-4" />
+    </Button>
+  </div>
+</div>
             ))
           )}
         </div>
