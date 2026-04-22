@@ -4,8 +4,9 @@ import { Button, Input, Label } from '@swish/ui';
 import { usePlayerCard } from './usePlayerCard';
 import { SUPPORTED_SPORTS } from '@swish/core';
 
-// Une petite liste de sports pour notre design universel
-const SPORTS_AVAILABLE = useState(SUPPORTED_SPORTS[0].id);
+// ✅ CORRECTION : Plus de useState ici ! On extrait juste les IDs ou les noms des sports.
+// Si SUPPORTED_SPORTS est un tableau d'objets, on récupère juste ce qu'on veut afficher :
+const SPORTS_AVAILABLE = SUPPORTED_SPORTS.map(sport => sport.id || sport); 
 
 export function PlayerCardForm({ user }) {
   const { playerCard, loadingCard, savePlayerCard } = usePlayerCard(user?.id);

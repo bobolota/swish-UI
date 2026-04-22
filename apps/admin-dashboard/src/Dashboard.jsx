@@ -9,14 +9,21 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogTrigger,
+  DialogDescription,
   Input,
   Label
 } from '@swish/ui';
 import { useAuth } from '@swish/identity';
 import { useTournamentOrganizer } from '@swish/competition';
+import { SUPPORTED_SPORTS } from '@swish/core';
+import { toast } from 'sonner';
+
+// ✅ ON EXTRAIT TES SPORTS DEPUIS LE NOYAU CORE
+const SPORTS_AVAILABLE = SUPPORTED_SPORTS.map(sport => sport.id || sport);
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  
   const { 
     managedTournaments, 
     isProcessing, 
@@ -24,10 +31,8 @@ export default function Dashboard() {
     createTournament 
   } = useTournamentOrganizer(user?.id);
 
-  // État pour la modale de création
   const [isOpen, setIsOpen] = useState(false);
 
-  // Chargement initial des données
   useEffect(() => {
     if (user?.id) {
       fetchManagedTournaments();
@@ -37,20 +42,29 @@ export default function Dashboard() {
   const handleCreateTournament = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    
     const data = {
       name: formData.get('name'),
       location: formData.get('location'),
       start_date: formData.get('date'),
+      sport_id: formData.get('sport_id') // ✅ ON RÉCUPÈRE MAINTENANT LE SPORT !
     };
 
     const { error } = await createTournament(data);
-    if (!error) setIsOpen(false); // Ferme la modale si succès
+    
+    if (error) {
+      toast.error("Erreur de création: " + error.message);
+    } else {
+      toast.success("Tournoi créé avec succès !");
+      setIsOpen(false); 
+      fetchManagedTournaments(); 
+    }
   };
 
   return (
-    <AdminLayout>
+    <AdminLayout user={user} logout={logout}>
       <div className="space-y-8">
-        {/* Header de la page */}
+        
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">
@@ -68,6 +82,7 @@ export default function Dashboard() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Créer un nouveau tournoi</DialogTitle>
+                <DialogDescription className="hidden">Remplissez les informations du tournoi</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreateTournament} className="space-y-4 pt-4">
                 <div className="space-y-2">
@@ -82,26 +97,38 @@ export default function Dashboard() {
                   <Label>Date de début</Label>
                   <Input name="date" type="date" required />
                 </div>
+                
+                {/* ✅ LE NOUVEAU MENU DÉROULANT POUR LE SPORT */}
+                <div className="space-y-2">
+                  <Label>Sport concerné</Label>
+                  <select 
+                    name="sport_id" 
+                    required
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="">Sélectionnez un sport...</option>
+                    {SPORTS_AVAILABLE.map(sport => (
+                      <option key={sport} value={sport}>{sport}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <Button type="submit" className="w-full bg-slate-900" disabled={isProcessing}>
-                  {isProcessing ? "Création..." : "Lancer le tournoi"}
+                  {isProcessing ? "Création en cours..." : "Lancer le tournoi"}
                 </Button>
               </form>
             </DialogContent>
           </Dialog>
         </div>
 
-        {/* Grille des tournois */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isProcessing && managedTournaments.length === 0 ? (
-            // État de chargement : Skeletons
             [1, 2, 3].map((i) => <Skeleton key={i} className="h-64 w-full rounded-2xl" />)
           ) : managedTournaments.length > 0 ? (
-            // État avec données : Cartes
             managedTournaments.map((tournament) => (
               <TournamentCard key={tournament.id} tournament={tournament} />
             ))
           ) : (
-            // État vide
             <div className="col-span-full py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
               <p className="text-slate-400 font-medium">Aucun tournoi organisé pour le moment.</p>
             </div>

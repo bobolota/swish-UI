@@ -41,13 +41,14 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
+// ✅ AJOUT DU forwardRef ICI
+const Button = React.forwardRef(({
   className,
   variant = "default",
   size = "default",
   asChild = false,
   ...props
-}) {
+}, ref) => {
   const Comp = asChild ? Slot.Root : "button"
 
   return (
@@ -56,8 +57,11 @@ function Button({
       data-variant={variant}
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
-      {...props} />
+      ref={ref} // ✅ ON PASSE LA REF À L'ÉLÉMENT DOM
+      {...props} 
+    />
   );
-}
+})
+Button.displayName = "Button" // Bonne pratique avec forwardRef
 
 export { Button, buttonVariants }
