@@ -7,7 +7,9 @@
     ".": "./src/index.js"
   },
   "dependencies": {
-    "@swish/core": "1.0.0",
-    "react": "^18.2.0"
+    "@swish/core": "1.0.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0 || ^19.0.0"
   }
 }
