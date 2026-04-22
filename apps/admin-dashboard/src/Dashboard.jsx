@@ -10,130 +10,114 @@ import {
   DialogTitle, 
   DialogTrigger,
   DialogDescription,
-  Input,
-  Label
+  KanbanBoard // <-- Correction : B majuscule
 } from '@swish/ui';
 import { useAuth } from '@swish/identity';
-import { useTournamentOrganizer } from '@swish/competition';
-import { SUPPORTED_SPORTS } from '@swish/core';
-import { toast } from 'sonner';
+import { useTournamentOrganizer, CreateTournamentForm } from '@swish/competition';
 
-// ✅ ON EXTRAIT TES SPORTS DEPUIS LE NOYAU CORE
-const SPORTS_AVAILABLE = SUPPORTED_SPORTS.map(sport => sport.id || sport);
+const TOURNAMENT_COLUMNS = [
+  { id: 'draft', title: 'Brouillon', bgColor: 'bg-slate-100/50', borderColor: 'border-slate-200' },
+  { id: 'open', title: 'Inscriptions', bgColor: 'bg-green-50/50', borderColor: 'border-green-200' },
+  { id: 'live', title: 'En cours', bgColor: 'bg-orange-50/50', borderColor: 'border-orange-200' },
+  { id: 'finished', title: 'Terminé', bgColor: 'bg-blue-50/50', borderColor: 'border-blue-200' }
+];
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
   
+  // NOUVEAU : On récupère updateTournamentStatus
   const { 
     managedTournaments, 
     isProcessing, 
-    fetchManagedTournaments, 
-    createTournament 
+    fetchManagedTournaments,
+    updateTournamentStatus 
   } = useTournamentOrganizer(user?.id);
-
+  
   const [isOpen, setIsOpen] = useState(false);
+  
+  // NOUVEAU : L'état pour basculer entre Kanban et Grille
+  const [viewMode, setViewMode] = useState('kanban'); 
 
   useEffect(() => {
-    if (user?.id) {
-      fetchManagedTournaments();
-    }
+    if (user?.id) fetchManagedTournaments();
   }, [user?.id, fetchManagedTournaments]);
-
-  const handleCreateTournament = async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    
-    const data = {
-      name: formData.get('name'),
-      location: formData.get('location'),
-      start_date: formData.get('date'),
-      sport_id: formData.get('sport_id') // ✅ ON RÉCUPÈRE MAINTENANT LE SPORT !
-    };
-
-    const { error } = await createTournament(data);
-    
-    if (error) {
-      toast.error("Erreur de création: " + error.message);
-    } else {
-      toast.success("Tournoi créé avec succès !");
-      setIsOpen(false); 
-      fetchManagedTournaments(); 
-    }
-  };
 
   return (
     <AdminLayout user={user} logout={logout}>
-      <div className="space-y-8">
+     <div className="space-y-8 flex-1 flex flex-col">
         
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">
-              Tableau de Bord
-            </h1>
+            <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Tableau de Bord</h1>
             <p className="text-slate-500">Gère tes compétitions et ton business.</p>
           </div>
 
-          <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white font-bold">
-                + Nouveau Tournoi
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Créer un nouveau tournoi</DialogTitle>
-                <DialogDescription className="hidden">Remplissez les informations du tournoi</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleCreateTournament} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Nom du tournoi</Label>
-                  <Input name="name" placeholder="ex: Summer League 2024" required />
-                </div>
-                <div className="space-y-2">
-                  <Label>Lieu</Label>
-                  <Input name="location" placeholder="ex: Gymnase Central" required />
-                </div>
-                <div className="space-y-2">
-                  <Label>Date de début</Label>
-                  <Input name="date" type="date" required />
-                </div>
-                
-                {/* ✅ LE NOUVEAU MENU DÉROULANT POUR LE SPORT */}
-                <div className="space-y-2">
-                  <Label>Sport concerné</Label>
-                  <select 
-                    name="sport_id" 
-                    required
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  >
-                    <option value="">Sélectionnez un sport...</option>
-                    {SPORTS_AVAILABLE.map(sport => (
-                      <option key={sport} value={sport}>{sport}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <Button type="submit" className="w-full bg-slate-900" disabled={isProcessing}>
-                  {isProcessing ? "Création en cours..." : "Lancer le tournoi"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {isProcessing && managedTournaments.length === 0 ? (
-            [1, 2, 3].map((i) => <Skeleton key={i} className="h-64 w-full rounded-2xl" />)
-          ) : managedTournaments.length > 0 ? (
-            managedTournaments.map((tournament) => (
-              <TournamentCard key={tournament.id} tournament={tournament} />
-            ))
-          ) : (
-            <div className="col-span-full py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-              <p className="text-slate-400 font-medium">Aucun tournoi organisé pour le moment.</p>
+          <div className="flex items-center gap-4">
+            {/* NOUVEAU : Les boutons pour basculer la vue */}
+            <div className="hidden md:flex items-center gap-1 bg-slate-200 p-1 rounded-lg">
+              <button 
+                onClick={() => setViewMode('kanban')} 
+                className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Kanban
+              </button>
+              <button 
+                onClick={() => setViewMode('grid')} 
+                className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Grille
+              </button>
             </div>
-          )}
+
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white font-bold">+ Nouveau Tournoi</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Créer un nouveau tournoi</DialogTitle>
+                  <DialogDescription className="hidden">Paramètres de la compétition</DialogDescription>
+                </DialogHeader>
+                
+                <CreateTournamentForm 
+                  userId={user?.id} 
+                  onSuccess={() => {
+                    setIsOpen(false);
+                    fetchManagedTournaments();
+                  }} 
+                />
+                
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
+
+        {/* NOUVEAU : La logique d'affichage conditionnelle */}
+        {isProcessing && managedTournaments.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-64 w-full rounded-2xl" />)}
+          </div>
+        ) : managedTournaments.length === 0 ? (
+          <div className="col-span-full py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+            <p className="text-slate-400 font-medium">Aucun tournoi organisé pour le moment.</p>
+          </div>
+        ) : viewMode === 'kanban' ? (
+          /* LE FAMEUX KANBAN EST ICI */
+          <KanbanBoard 
+            columns={TOURNAMENT_COLUMNS}
+            items={managedTournaments} 
+            onStatusChange={updateTournamentStatus}
+            renderCard={(tournament) => <TournamentCard tournament={tournament} />} 
+          />
+        ) : (
+          /* LA GRILLE CLASSIQUE */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {managedTournaments.map((tournament) => (
+              <TournamentCard key={tournament.id} tournament={tournament} />
+            ))}
+          </div>
+        )}
+
       </div>
     </AdminLayout>
   );

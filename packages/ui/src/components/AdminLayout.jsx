@@ -16,7 +16,6 @@ export function AdminLayout({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const currentTab = menuItems.find(item => item.id === activeTab);
 
-  // Fonction pour changer d'onglet ET fermer le menu sur mobile
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     setIsMobileMenuOpen(false);
@@ -25,8 +24,6 @@ export function AdminLayout({
   return (
     <div className="min-h-screen flex bg-slate-50 text-slate-900 overflow-hidden">
       
-      {/* LE FOND SOMBRE (OVERLAY) SUR MOBILE */}
-      {/* Apparaît uniquement quand le menu est ouvert, et le ferme si on clique dessus */}
       {isMobileMenuOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/50 z-40 md:hidden backdrop-blur-sm"
@@ -34,7 +31,6 @@ export function AdminLayout({
         />
       )}
 
-      {/* LA SIDEBAR (Maintenant intelligente : Glissante sur mobile, Fixe sur PC) */}
       <Sidebar 
         appName={appName} 
         appIcon={appIcon} 
@@ -45,7 +41,6 @@ export function AdminLayout({
         isOpen={isMobileMenuOpen}
       />
 
-      {/* ZONE DE CONTENU PRINCIPALE */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <Topbar 
           currentTabTitle={currentTab?.label} 
@@ -53,11 +48,17 @@ export function AdminLayout({
           toggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         />
 
-        {/* Le conteneur scrollable (avec ta fameuse classe no-scrollbar si tu veux) */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="max-w-5xl mx-auto pb-20 md:pb-0">
+        {/* ✅ C'EST ICI QUE TOUT CHANGE */}
+        {/* On ajoute flex flex-col pour que la zone prenne 100% de la hauteur */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col">
+          
+          {/* ✅ NOUVELLE LARGEUR : max-w-[1600px] au lieu de 5xl. 
+              mx-auto garantit que tout restera parfaitement centré sur les très grands écrans. 
+              flex-1 pousse le contenu jusqu'en bas. */}
+          <div className="w-full max-w-[1600px] mx-auto flex-1 flex flex-col pb-20 md:pb-0">
             {children}
           </div>
+          
         </div>
       </main>
     </div>

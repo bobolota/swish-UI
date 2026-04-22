@@ -9,6 +9,7 @@ export { Switch } from './components/switch';
 export { Textarea } from './components/textarea';
 export { Skeleton } from './components/skeleton';
 export { AdminLayout } from './components/AdminLayout';
+export { KanbanBoard } from "./components/KanbanBoard";
 
 // Les Composants Complexes (on met des étoiles pour exporter toutes leurs sous-pièces d'un coup !)
 export * from './components/avatar';

@@ -73,11 +73,33 @@ export function useTournamentOrganizer(userId) {
     return { error };
   };
 
+  // 4. Mettre à jour le statut du tournoi (Drag & Drop Kanban)
+  const updateTournamentStatus = async (tournamentId, newStatus) => {
+    // "Optimistic UI" : On met à jour l'affichage immédiatement pour que la carte glisse sans lag
+    setManagedTournaments(prev => 
+      prev.map(t => t.id === tournamentId ? { ...t, status: newStatus } : t)
+    );
+
+    const { error } = await supabase
+      .from('tournaments')
+      .update({ status: newStatus })
+      .eq('id', tournamentId);
+
+    if (error) {
+      toast.error("Erreur réseau : le statut n'a pas pu être sauvegardé.");
+      fetchManagedTournaments(); // Rollback visuel en cas d'erreur
+    } else {
+      toast.success("Statut du tournoi mis à jour !");
+    }
+    return { error };
+  };
+
   return {
     isProcessing,
     managedTournaments,
     createTournament,
     fetchManagedTournaments,
-    togglePaymentStatus
+    togglePaymentStatus,
+    updateTournamentStatus
   };
 }
