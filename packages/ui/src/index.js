@@ -26,6 +26,7 @@ export * from './components/PremiumStatsWidget';
 export * from './components/Sidebar';
 export * from './components/Topbar';
 export * from './components/TournamentCard';
+export * from './components/PaymentStatusToggle';
 
 // Le cas particulier
 export { Calendar } from './components/calendar';

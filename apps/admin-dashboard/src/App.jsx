@@ -10,6 +10,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/tournament/:id" element={<TournamentManager />} />
+        <Route path="/tournament/:tournamentId/team/:teamId" element={<TeamPlayersPage />} />
         
         <Route path="*" element={
           <div className="flex h-screen items-center justify-center bg-slate-100">
