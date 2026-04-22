@@ -39,7 +39,7 @@ export function KanbanBoard({
         return (
           <div 
             key={column.id}
-            className={`flex-none w-80 rounded-xl border-2 flex flex-col ${column.bgColor} ${column.borderColor}`}
+            className={`flex-none w-95 rounded-xl border-2 flex flex-col ${column.bgColor} ${column.borderColor}`}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, column.id)}
           >
@@ -59,8 +59,8 @@ export function KanbanBoard({
                   onDragEnd={() => setDraggedId(null)}
                   className={`transition-opacity ${!isReadOnly ? 'cursor-grab active:cursor-grabbing' : ''} ${draggedId === item.id ? 'opacity-40' : 'opacity-100'}`}
                 >
-                  <div className="pointer-events-none">
-                    {/* C'est ici la magie : le parent décide de ce qui s'affiche ! */}
+                  {/* ✅ LA CARTE PEUT MAINTENANT RECEVOIR LES CLICS */}
+                  <div>
                     {renderCard(item)}
                   </div>
                 </div>

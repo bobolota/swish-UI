@@ -16,7 +16,7 @@ import { useAuth } from '@swish/identity';
 import { useTournamentOrganizer, CreateTournamentForm } from '@swish/competition';
 import { useNavigate } from 'react-router-dom';
 
-const navigate = useNavigate();
+
 
 const TOURNAMENT_COLUMNS = [
   { id: 'draft', title: 'Brouillon', bgColor: 'bg-slate-100/50', borderColor: 'border-slate-200' },
@@ -27,6 +27,8 @@ const TOURNAMENT_COLUMNS = [
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
+
+  const navigate = useNavigate();
   
   // NOUVEAU : On récupère updateTournamentStatus
   const { 
