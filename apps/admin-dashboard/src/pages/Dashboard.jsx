@@ -14,6 +14,9 @@ import {
 } from '@swish/ui';
 import { useAuth } from '@swish/identity';
 import { useTournamentOrganizer, CreateTournamentForm } from '@swish/competition';
+import { useNavigate } from 'react-router-dom';
+
+const navigate = useNavigate();
 
 const TOURNAMENT_COLUMNS = [
   { id: 'draft', title: 'Brouillon', bgColor: 'bg-slate-100/50', borderColor: 'border-slate-200' },
@@ -103,20 +106,32 @@ export default function Dashboard() {
           </div>
         ) : viewMode === 'kanban' ? (
           /* LE FAMEUX KANBAN EST ICI */
-          <KanbanBoard 
-            columns={TOURNAMENT_COLUMNS}
-            items={managedTournaments} 
-            onStatusChange={updateTournamentStatus}
-            renderCard={(tournament) => <TournamentCard tournament={tournament} />} 
-          />
-        ) : (
-          /* LA GRILLE CLASSIQUE */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {managedTournaments.map((tournament) => (
-              <TournamentCard key={tournament.id} tournament={tournament} />
-            ))}
-          </div>
-        )}
+        <KanbanBoard 
+          columns={TOURNAMENT_COLUMNS}
+          items={managedTournaments} 
+          onStatusChange={updateTournamentStatus}
+          renderCard={(tournament) => (
+            // ✅ Ajout du clic pour le Kanban
+            <div onClick={() => navigate(`/tournament/${tournament.id}`)}>
+              <TournamentCard tournament={tournament} />
+            </div>
+          )} 
+        />
+      ) : (
+        /* LA GRILLE CLASSIQUE */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {managedTournaments.map((tournament) => (
+            // ✅ Ajout du clic pour la Grille (Attention : le "key" se met sur la div parente)
+            <div 
+              key={tournament.id} 
+              onClick={() => navigate(`/tournament/${tournament.id}`)}
+              className="cursor-pointer" // Petit bonus pour avoir la main au survol
+            >
+              <TournamentCard tournament={tournament} />
+            </div>
+          ))}
+        </div>
+      )}    
 
       </div>
     </AdminLayout>
