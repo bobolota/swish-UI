@@ -19,7 +19,12 @@ export * from './components/table';
 export * from './components/tabs';
 export * from './components/dropdown-menu';
 export * from './components/checkbox';
+export * from './components/NextMatchWidget';
 export * from './components/popover';
+export * from './components/PremiumStatsWidget';
+export * from './components/Sidebar';
+export * from './components/Topbar';
+export * from './components/TournamentCard';
 
 // Le cas particulier
 export { Calendar } from './components/calendar';
