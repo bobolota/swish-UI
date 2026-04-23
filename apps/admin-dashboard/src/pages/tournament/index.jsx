@@ -4,6 +4,8 @@ import { AdminLayout } from '@swish/ui';
 import { useAuth } from '@swish/identity';
 import { supabase } from '@swish/core'; 
 import TeamsTab from './TeamsTab';
+import PoolsTab from './PoolsTab';
+import MatchesTab from './MatchesTab';
 
 // Les onglets disponibles
 const TABS = [
@@ -78,8 +80,8 @@ export default function TournamentManager() {
         {/* AFFICHAGE DU CONTENU DE L'ONGLET ACTIF */}
         <div className="flex-1 mt-6">
           {activeTab === 'teams' && <TeamsTab tournamentId={id} />}
-          {activeTab === 'pools' && <div className="p-8 text-center text-slate-400 font-medium">Onglet Poules en construction...</div>}
-          {activeTab === 'schedule' && <div className="p-8 text-center text-slate-400 font-medium">Onglet Planning en construction...</div>}
+          {activeTab === 'pools' && <PoolsTab tournamentId={id} />}
+          {activeTab === 'schedule' && <MatchesTab tournamentId={id} />}
           {activeTab === 'standings' && <div className="p-8 text-center text-slate-400 font-medium">Onglet Classement en construction...</div>}
         </div>
 

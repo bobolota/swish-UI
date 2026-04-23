@@ -5,3 +5,5 @@ export { useTournamentOrganizer } from "./useTournamentOrganizer";
 export { CreateTournamentForm } from "./CreateTournamentForm";
 
 export { useTournamentTeams } from './useTournamentTeams';
+export * from './useTournamentPools';
+export * from './useTournamentMatches';
