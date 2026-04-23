@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { AdminLayout } from '@swish/ui';
 import { useAuth } from '@swish/identity';
 import { supabase } from '@swish/core'; 
@@ -22,7 +22,13 @@ export default function TournamentManager() {
   const { user, logout } = useAuth();
   
   const [tournament, setTournament] = useState(null);
-  const [activeTab, setActiveTab] = useState('teams');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+
+  // Fonction pour changer l'URL quand on clique sur un onglet
+  const handleTabChange = (newValue) => {
+    setSearchParams({ tab: newValue });
+  };
 
   // 1. On récupère les infos basiques du tournoi pour afficher le titre
   useEffect(() => {

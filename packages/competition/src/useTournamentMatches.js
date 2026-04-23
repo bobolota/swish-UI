@@ -8,31 +8,50 @@ export function useTournamentMatches(tournamentId) {
 
   // 1. Récupérer les matchs existants
   const fetchMatches = useCallback(async () => {
-    if (!tournamentId) return;
+        
+    if (!tournamentId) {
+      setIsLoading(false);
+      return;
+    }
+    
     setIsLoading(true);
     
-    const { data, error } = await supabase
-      .from('matches')
-      .select(`
-        id, pool_id, status, start_time, court_name,
-        home_team_id, away_team_id, home_score, away_score
-      `)
-      .eq('tournament_id', tournamentId)
-      .order('created_at', { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          match_officials!fk_match_official_match ( 
+            id,
+            role,
+            user_id
+          ),
+          pools ( name )
+        `)
+        .eq('tournament_id', tournamentId)
+        .order('created_at', { ascending: true });
 
-    if (error) console.error("Erreur chargement matchs:", error);
-    else setMatches(data || []);
-    
-    setIsLoading(false);
+      
+      if (error) {
+        
+      } else {
+        
+        setMatches(data || []);
+      }
+    } catch (err) {
+      
+    } finally {
+      
+      setIsLoading(false);
+    }
   }, [tournamentId]);
 
   useEffect(() => {
     fetchMatches();
   }, [fetchMatches]);
 
-  // 2. GÉNÉRATION AUTOMATIQUE (L'Algorithme)
+  // 2. GÉNÉRATION AUTOMATIQUE
   const generateAutoMatches = async (isTwoLegs = false) => {
-    // A. Récupérer la composition actuelle des poules
     const { data: registrations } = await supabase
       .from('tournament_registrations')
       .select('pool_id, team_id')
@@ -44,7 +63,6 @@ export function useTournamentMatches(tournamentId) {
       return toast.error("Aucune équipe n'est assignée à une poule !");
     }
 
-    // B. Grouper les équipes par poule
     const teamsByPool = registrations.reduce((acc, reg) => {
       if (!acc[reg.pool_id]) acc[reg.pool_id] = [];
       acc[reg.pool_id].push(reg.team_id);
@@ -53,12 +71,9 @@ export function useTournamentMatches(tournamentId) {
 
     const matchesToInsert = [];
 
-    // C. Générer les combinaisons mathématiques
     for (const [poolId, teamIds] of Object.entries(teamsByPool)) {
       for (let i = 0; i < teamIds.length; i++) {
         for (let j = i + 1; j < teamIds.length; j++) {
-          
-          // Match Aller
           matchesToInsert.push({
             tournament_id: tournamentId,
             pool_id: poolId,
@@ -67,12 +82,11 @@ export function useTournamentMatches(tournamentId) {
             status: 'scheduled'
           });
 
-          // Match Retour (Si l'option est cochée)
           if (isTwoLegs) {
             matchesToInsert.push({
               tournament_id: tournamentId,
               pool_id: poolId,
-              home_team_id: teamIds[j], // On inverse Domicile/Extérieur
+              home_team_id: teamIds[j],
               away_team_id: teamIds[i],
               status: 'scheduled'
             });
@@ -81,14 +95,11 @@ export function useTournamentMatches(tournamentId) {
       }
     }
 
-    // D. Sauvegarder dans Supabase
     const { error } = await supabase.from('matches').insert(matchesToInsert);
-    
-    if (error) {
-      toast.error("Erreur lors de la création des matchs");
-    } else {
-      toast.success(`${matchesToInsert.length} matchs générés avec succès !`);
-      fetchMatches(); // On met à jour l'affichage
+    if (error) toast.error("Erreur création matchs");
+    else {
+      toast.success(`${matchesToInsert.length} matchs générés !`);
+      fetchMatches();
     }
   };
 
@@ -97,7 +108,6 @@ export function useTournamentMatches(tournamentId) {
     if (!homeTeamId || !awayTeamId || homeTeamId === awayTeamId) {
       return toast.error("Veuillez sélectionner deux équipes différentes.");
     }
-
     const { error } = await supabase.from('matches').insert([{
       tournament_id: tournamentId,
       pool_id: poolId || null,
@@ -105,14 +115,74 @@ export function useTournamentMatches(tournamentId) {
       away_team_id: awayTeamId,
       status: 'scheduled'
     }]);
+    if (!error) { toast.success("Match ajouté !"); fetchMatches(); }
+  };
 
+  // 4. SUPPRESSION
+  const deleteMatch = async (matchId) => {
+    const { error } = await supabase.from('matches').delete().eq('id', matchId);
+    if (!error) { toast.success("Match supprimé"); fetchMatches(); }
+  };
+
+  const deleteAllMatches = async () => {
+    if (!window.confirm("Tout supprimer ?")) return;
+    const { error } = await supabase.from('matches').delete().eq('tournament_id', tournamentId);
+    if (!error) { toast.success("Matchs réinitialisés"); fetchMatches(); }
+  };
+
+  // 5. METTRE À JOUR UN MATCH
+  const updateMatch = async (matchId, updates) => {
+    const { error } = await supabase.from('matches').update(updates).eq('id', matchId);
+    if (error) toast.error("Erreur mise à jour");
+    else fetchMatches();
+  };
+
+  // 6. GESTION DES OFFICIELS
+  const assignOfficial = async (matchId, userId, role) => {
+    const { error } = await supabase
+      .from('match_officials')
+      .insert([{ match_id: matchId, user_id: userId, role: role }]);
+      
     if (error) {
-      toast.error("Erreur lors de la création manuelle");
+      // Si c'est l'erreur 23505 (Doublon)
+      if (error.code === '23505') {
+        toast.error("Cet utilisateur est déjà assigné à ce match !");
+      } else {
+        
+        toast.error("Impossible d'assigner cet officiel.");
+      }
+      // On rafraîchit la liste pour "annuler" l'ajout visuel qui s'était fait dans la modale
+      fetchMatches(); 
     } else {
-      toast.success("Match ajouté manuellement !");
+      toast.success("Officiel assigné avec succès !");
       fetchMatches();
     }
   };
 
-  return { matches, isLoading, generateAutoMatches, createManualMatch };
+  // 👇 AJOUTE CETTE FONCTION SI ELLE A DISPARU 👇
+  const removeOfficial = async (officialRecordId) => {
+    const { error } = await supabase
+      .from('match_officials')
+      .delete()
+      .eq('id', officialRecordId);
+      
+    if (error) {
+      
+    } else {
+      fetchMatches();
+    }
+  };
+
+  // Le return final de ton hook
+  return { 
+    matches, 
+    isLoading, 
+    generateAutoMatches, 
+    createManualMatch, 
+    deleteMatch, 
+    deleteAllMatches, 
+    updateMatch,
+    assignOfficial,
+    removeOfficial // C'est ici que ça plantait car la fonction n'existait plus au-dessus !
+  };
 }
