@@ -1,5 +1,5 @@
 {
-  "name": "@swish/admin-dashboard",
+  "name": "@swish/player-app",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -23,6 +23,9 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
     "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^4.2.4",
     "vite": "^8.0.10"
   }
 }

@@ -173,6 +173,46 @@ export function useTournamentMatches(tournamentId) {
     }
   };
 
+  const generateBracket = async (tournamentId, size = 8) => {
+  setIsLoading(true);
+  try {
+    // 1. Créer la Finale
+    const { data: finalMatch } = await supabase
+      .from('matches')
+      .insert([{ tournament_id: tournamentId, stage: 'final', bracket_index: 1 }])
+      .select().single();
+
+    // 2. Créer les Demies
+    const { data: semis } = await supabase
+      .from('matches')
+      .insert([
+        { tournament_id: tournamentId, stage: 'semi', bracket_index: 1, next_match_id: finalMatch.id },
+        { tournament_id: tournamentId, stage: 'semi', bracket_index: 2, next_match_id: finalMatch.id }
+      ])
+      .select();
+
+    // 3. Créer les Quarts (si size = 8)
+    if (size >= 8) {
+      const quarterMatches = [];
+      semis.forEach((semi, idx) => {
+        quarterMatches.push(
+          { tournament_id: tournamentId, stage: 'quarter', bracket_index: (idx * 2) + 1, next_match_id: semi.id },
+          { tournament_id: tournamentId, stage: 'quarter', bracket_index: (idx * 2) + 2, next_match_id: semi.id }
+        );
+      });
+      await supabase.from('matches').insert(quarterMatches);
+    }
+
+    await fetchMatches(); // Rafraîchir la liste
+    toast.success("Arbre généré avec succès !");
+  } catch (error) {
+    console.error(error);
+    toast.error("Erreur lors de la génération");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
   // Le return final de ton hook
   return { 
     matches, 
@@ -183,6 +223,7 @@ export function useTournamentMatches(tournamentId) {
     deleteAllMatches, 
     updateMatch,
     assignOfficial,
-    removeOfficial // C'est ici que ça plantait car la fonction n'existait plus au-dessus !
+    removeOfficial,
+    generateBracket // C'est ici que ça plantait car la fonction n'existait plus au-dessus !
   };
 }

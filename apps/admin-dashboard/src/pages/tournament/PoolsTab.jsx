@@ -94,8 +94,7 @@ export default function PoolsTab({ tournamentId }) {
 
   return (
     <div className="flex flex-col h-full gap-6 p-6">
-      {/* Barre d'outils */}
-      {/* Barre d'outils */}
+      {/* Barre d'outils */}      
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         
         {/* Ajout manuel */}

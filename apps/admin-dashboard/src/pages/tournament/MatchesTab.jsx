@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useTournamentMatches, useTournamentTeams } from '@swish/competition'; // On récupère les équipes aussi
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input, Label } from '@swish/ui';
-import { CalendarPlus, Trash2, Plus, ArrowRightLeft, ArrowRight } from 'lucide-react';
+import { CalendarPlus, Trash2, Plus, ArrowRightLeft, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { MatchCard } from '@swish/match-engine'; 
 import { supabase } from '@swish/core';
+import { toast } from 'sonner';
 
 export default function MatchesTab({ tournamentId }) {
   const { matches, isLoading, generateAutoMatches, createManualMatch, deleteMatch, deleteAllMatches, updateMatch, assignOfficial, removeOfficial } = useTournamentMatches(tournamentId);
@@ -15,6 +16,8 @@ export default function MatchesTab({ tournamentId }) {
   // États pour le nouveau match manuel
   const [newMatch, setNewMatch] = useState({ home: '', away: '', pool: '' });
 
+  const [isFinishedExpanded, setIsFinishedExpanded] = useState(false);
+ 
   const handleManualCreate = async () => {
     await createManualMatch(newMatch.pool, newMatch.home, newMatch.away);
     setIsManualOpen(false);
@@ -38,14 +41,59 @@ export default function MatchesTab({ tournamentId }) {
   }, []);
 
   const handleSaveEdit = async () => {
-    // On envoie les modifications à la base de données
+    // On n'envoie PLUS les scores ici, juste la logistique !
     await updateMatch(editingMatch.id, {
-      home_score: editingMatch.home_score,
-      away_score: editingMatch.away_score,
       court_name: editingMatch.court_name,
       start_time: editingMatch.start_time
     });
-    setEditingMatch(null); // On ferme la modal
+    setEditingMatch(null); // On ferme la modale
+    toast.success("Détails du match mis à jour !");
+  };
+
+  const handleSaveScore = async (matchId, homeScore, awayScore) => {
+    // On retrouve les détails du match actuel pour savoir où il se trouve dans l'arbre
+    const currentMatch = matches.find(m => m.id === matchId);
+    if (!currentMatch) return;
+
+    const isFinished = homeScore !== null && awayScore !== null;
+    const newStatus = isFinished ? 'finished' : 'in_progress';
+
+    try {
+      // 1. On sauvegarde le score du match actuel
+      await updateMatch(matchId, { 
+        home_score: homeScore, 
+        away_score: awayScore,
+        status: newStatus 
+      });
+
+      // 2. NOUVEAU : LA LOGIQUE D'AVANCEMENT
+      // Si c'est un match d'arbre (il a une suite) ET qu'il y a un vainqueur
+      if (currentMatch.next_match_id) {
+        
+        // On détermine si ce match envoie le vainqueur en "Domicile" ou "Extérieur" du match suivant
+        // (Impair = Domicile, Pair = Extérieur)
+        const isHomeSlot = currentMatch.bracket_index % 2 !== 0;
+
+        if (isFinished && homeScore !== awayScore) {
+          // On trouve le gagnant
+          const winnerId = homeScore > awayScore ? currentMatch.home_team_id : currentMatch.away_team_id;
+          
+          // On le propulse dans le match suivant !
+          const updateData = isHomeSlot ? { home_team_id: winnerId } : { away_team_id: winnerId };
+          await updateMatch(currentMatch.next_match_id, updateData);
+
+        } else if (!isFinished) {
+          // BONUS ROBUSTE : Si on efface le score pour corriger une erreur, 
+          // on retire l'équipe du match suivant pour ne pas fausser l'arbre.
+          const updateData = isHomeSlot ? { home_team_id: null } : { away_team_id: null };
+          await updateMatch(currentMatch.next_match_id, updateData);
+        }
+      }
+
+      toast.success("Score validé et mis à jour !");
+    } catch (error) {
+      toast.error("Erreur lors de la sauvegarde du score");
+    }
   };
 
   // Petite fonction pour convertir les dates ISO pour l'input type="datetime-local"
@@ -57,6 +105,73 @@ export default function MatchesTab({ tournamentId }) {
   };
   
   if (isLoading) return <div className="p-8 text-center text-slate-500">Chargement...</div>;
+
+  // 1. Définir l'ordre strict des étapes
+  const stageOrder = ['pools', 'round_128', 'round_64', 'round_32', 'round_16', 'quarter', 'semi', 'final'];
+
+  // 2. Trouver jusqu'où le tournoi a progressé
+  const getVisibleStageLimit = () => {
+    let limitIndex = 0; // Par défaut, on voit au moins les poules
+
+    for (let i = 0; i < stageOrder.length; i++) {
+      const stage = stageOrder[i];
+      const stageMatches = matches.filter(m => m.stage === stage);
+
+      // 🚨 NOUVEAU : On isole uniquement les "vrais" matchs (qui ont deux équipes)
+      // Les matchs avec une équipe manquante (null) sont des Byes et sont ignorés.
+      const realStageMatches = stageMatches.filter(m => m.home_team_id && m.away_team_id);
+
+      // Si l'étape n'existe pas ou ne contient QUE des Byes
+      if (realStageMatches.length === 0) {
+        limitIndex = i + 1;
+        continue;
+      }
+
+      // On vérifie si tous les "vrais" matchs sont terminés
+      const isStageFinished = realStageMatches.every(m => m.status === 'finished');
+
+      if (isStageFinished) {
+        limitIndex = i + 1;
+      } else {
+        break;
+      }
+    }
+    return limitIndex;
+  };
+
+  const visibleLimit = getVisibleStageLimit();
+
+  // 3. Filtrer les matchs selon la progression ET exclure les Byes de l'affichage
+  const visibleByProgression = matches.filter(m => {
+    const matchStageIndex = stageOrder.indexOf(m.stage);
+    const isRealMatch = m.home_team_id && m.away_team_id; // 👈 Le filtre anti-bye
+    
+    return matchStageIndex <= visibleLimit && isRealMatch;
+  });
+  
+  // 4. On sépare et on TRIE les matchs pour l'affichage final
+  const activeMatches = visibleByProgression
+    .filter(m => m.status !== 'finished')
+    .sort((a, b) => {
+      // Si un match n'a pas d'heure définie, on le pousse à la fin de la liste
+      if (!a.start_time) return 1;
+      if (!b.start_time) return -1;
+      // Ordre chronologique : le match le plus proche est en premier
+      return new Date(a.start_time) - new Date(b.start_time);
+    });
+
+  const finishedMatches = visibleByProgression
+    .filter(m => m.status === 'finished')
+    .sort((a, b) => {
+      if (!a.start_time) return 1;
+      if (!b.start_time) return -1;
+      // Ordre anti-chronologique : le match terminé le plus récemment est en premier
+      return new Date(b.start_time) - new Date(a.start_time);
+    });
+    
+  if (isLoading) return <div className="p-8 text-center text-slate-500">Chargement...</div>;
+
+  
 
   return (
     <div className="flex flex-col h-full gap-6 p-6">
@@ -78,7 +193,8 @@ export default function MatchesTab({ tournamentId }) {
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">       
+          
           {/* BOUTON AJOUT MANUEL AVEC DIALOG */}
           <Dialog open={isManualOpen} onOpenChange={setIsManualOpen}>
             <DialogTrigger asChild>
@@ -118,18 +234,66 @@ export default function MatchesTab({ tournamentId }) {
         </div>
       </div>
 
+      
+      {/* 2. LA BANDE RÉTRACTABLE DES MATCHS TERMINÉS */}
+      {finishedMatches.length > 0 && (
+        <div className="mt-4 pt-4 ">
+          <button
+            onClick={() => setIsFinishedExpanded(!isFinishedExpanded)}
+            className="flex items-center justify-between w-full p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-bold transition-all group"
+          >
+            <div className="flex items-center gap-2">
+              <span className="bg-slate-200 text-slate-600 px-2.5 py-0.5 rounded-md text-xs">
+                {finishedMatches.length}
+              </span>
+              Matchs terminés
+            </div>
+            <div className="text-slate-400 group-hover:text-slate-600 transition-colors">
+              {isFinishedExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </button>
+
+          {/* Le tiroir qui s'ouvre */}
+          {isFinishedExpanded && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4 animate-in slide-in-from-top-2 fade-in duration-200">
+              {finishedMatches.map((match) => (
+                <MatchCard 
+                  key={match.id} 
+                  match={match} 
+                  profiles={profiles}
+                  teams={teams}
+                  onDelete={deleteMatch}
+                  onSaveScore={handleSaveScore}
+                  onEdit={() => setEditingMatch(match)}
+                  onClick={(m) => setEditingMatch(m)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 1. GRILLE DES MATCHS ACTIFS (À venir & En cours) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto pb-4">
-        {matches.map((match) => (
+        {activeMatches.map((match) => (
           <MatchCard 
             key={match.id} 
             match={match} 
             profiles={profiles}
             teams={teams}
             onDelete={deleteMatch}
-            onEdit={() => setEditingMatch(match)} // ✅ On passe la fonction de suppression
+            onSaveScore={handleSaveScore}
+            onEdit={() => setEditingMatch(match)}
             onClick={(m) => setEditingMatch(m)}
           />
         ))}
+        
+        {/* Petit message sympa s'il n'y a plus de matchs à jouer */}
+        {matches.length > 0 && activeMatches.length === 0 && (
+          <div className="col-span-full p-8 text-center bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 font-medium">
+            🎉 Tous les matchs de cette phase sont terminés !
+          </div>
+        )}
       </div>
 
       {/* MODAL D'ÉDITION D'UN MATCH */}
@@ -166,42 +330,7 @@ export default function MatchesTab({ tournamentId }) {
                   />
                 </div>
               </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-4">
-                <h4 className="text-sm font-bold text-slate-500 uppercase text-center mb-2">Scores</h4>
-                
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 space-y-2">
-                    <Label className="text-xs truncate block">{editingMatch.home_team_id?.substring(0,8) || 'Domicile'}</Label>
-                    <Input 
-                      type="number" 
-                      min="0"
-                      className="text-center font-bold text-lg"
-                      value={editingMatch.home_score ?? ''}
-                      onChange={(e) => setEditingMatch({
-                        ...editingMatch, 
-                        home_score: e.target.value === '' ? null : parseInt(e.target.value, 10)
-                      })}
-                    />
-                  </div>
-                  
-                  <div className="text-xl font-black text-slate-300 mt-6">-</div>
-                  
-                  <div className="flex-1 space-y-2">
-                    <Label className="text-xs truncate block">{editingMatch.away_team_id?.substring(0,8) || 'Extérieur'}</Label>
-                    <Input 
-                      type="number" 
-                      min="0"
-                      className="text-center font-bold text-lg"
-                      value={editingMatch.away_score ?? ''}
-                      onChange={(e) => setEditingMatch({
-                        ...editingMatch, 
-                        away_score: e.target.value === '' ? null : parseInt(e.target.value, 10)
-                      })}
-                    />
-                  </div>
-                </div>
-              </div>
+              
 
               {/* --- NOUVELLE SECTION : OFFICIELS --- */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-4">

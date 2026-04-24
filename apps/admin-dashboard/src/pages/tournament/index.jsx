@@ -6,13 +6,16 @@ import { supabase } from '@swish/core';
 import TeamsTab from './TeamsTab';
 import PoolsTab from './PoolsTab';
 import MatchesTab from './MatchesTab';
+import { StandingsTab } from './StandingsTab';
+import { BracketTab } from './BracketTab';
 
 // Les onglets disponibles
 const TABS = [
   { id: 'teams', label: 'Inscriptions & Équipes' },
   { id: 'pools', label: 'Poules & Format' },
   { id: 'schedule', label: 'Planning & Matchs' },
-  { id: 'standings', label: 'Classement' }
+  { id: 'standings', label: 'Classement' },
+  { id: 'bracket', label: 'Phase Finale' }
 ];
 
 export default function TournamentManager() {
@@ -22,13 +25,10 @@ export default function TournamentManager() {
   const { user, logout } = useAuth();
   
   const [tournament, setTournament] = useState(null);
+  // On lit l'URL
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'overview';
-
-  // Fonction pour changer l'URL quand on clique sur un onglet
-  const handleTabChange = (newValue) => {
-    setSearchParams({ tab: newValue });
-  };
+  // Si l'URL n'a pas de paramètre, on met 'teams' (ou le premier ID de ton TABS) par défaut
+  const activeTab = searchParams.get('tab') || 'teams';
 
   // 1. On récupère les infos basiques du tournoi pour afficher le titre
   useEffect(() => {
@@ -70,7 +70,8 @@ export default function TournamentManager() {
           {TABS.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              // 👇 LE CHANGEMENT EST ICI 👇
+              onClick={() => setSearchParams({ tab: tab.id })}
               className={`pb-4 text-sm font-bold transition-colors relative ${
                 activeTab === tab.id ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
               }`}
@@ -83,12 +84,13 @@ export default function TournamentManager() {
           ))}
         </div>
 
-        {/* AFFICHAGE DU CONTENU DE L'ONGLET ACTIF */}
+        {/* AFFICHAGE DU CONTENU DE L'ONGLET ACTIF (Rien à changer ici !) */}
         <div className="flex-1 mt-6">
           {activeTab === 'teams' && <TeamsTab tournamentId={id} />}
           {activeTab === 'pools' && <PoolsTab tournamentId={id} />}
           {activeTab === 'schedule' && <MatchesTab tournamentId={id} />}
-          {activeTab === 'standings' && <div className="p-8 text-center text-slate-400 font-medium">Onglet Classement en construction...</div>}
+          {activeTab === 'standings' && <StandingsTab tournamentId={id} />}
+          {activeTab === 'bracket' && <BracketTab tournamentId={id} />}
         </div>
 
       </div>
