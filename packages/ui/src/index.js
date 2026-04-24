@@ -27,6 +27,7 @@ export * from './components/Sidebar';
 export * from './components/Topbar';
 export * from './components/TournamentCard';
 export * from './components/PaymentStatusToggle';
+export { TeamRosterPanel } from './components/TeamRosterPanel';
 
 // Le cas particulier
 export { Calendar } from './components/calendar';

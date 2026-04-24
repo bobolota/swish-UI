@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { Button } from './button';
 
-export function Sidebar({ appName, appIcon, menuItems, activeTab, handleTabChange, logout, isOpen }) {
+// 👇 NOUVEAU : On ajoute 'footerContent' à la liste des props
+export function Sidebar({ appName, appIcon, menuItems, activeTab, handleTabChange, logout, isOpen, footerContent }) {
   return (
     <aside 
       className={`
@@ -27,13 +28,17 @@ export function Sidebar({ appName, appIcon, menuItems, activeTab, handleTabChang
                 : 'hover:bg-slate-800 hover:text-white'
             }`}
           >
-            {/* Si tu as des icônes, elles s'affichent ici */}
             <span>{item.icon}</span> {item.label}
           </button>
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
+      {/* 👇 NOUVEAU : On gère la zone du bas avec un gap pour séparer les éléments */}
+      <div className="p-4 border-t border-slate-800 flex flex-col gap-3">
+        
+        {/* On affiche le bouton Switcher s'il est fourni par le Layout */}
+        {footerContent}
+
         <Button 
           variant="ghost" 
           className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-900/20" 

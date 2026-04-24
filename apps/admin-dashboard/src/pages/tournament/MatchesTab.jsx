@@ -5,9 +5,11 @@ import { CalendarPlus, Trash2, Plus, ArrowRightLeft, ArrowRight, ChevronDown, Ch
 import { MatchCard } from '@swish/match-engine'; 
 import { supabase } from '@swish/core';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 export default function MatchesTab({ tournamentId }) {
   const { matches, isLoading, generateAutoMatches, createManualMatch, deleteMatch, deleteAllMatches, updateMatch, assignOfficial, removeOfficial } = useTournamentMatches(tournamentId);
+  const navigate = useNavigate();
   const { teams } = useTournamentTeams(tournamentId); // Pour choisir les équipes dans le formulaire
   
   const [isTwoLegs, setIsTwoLegs] = useState(false);
@@ -265,7 +267,7 @@ export default function MatchesTab({ tournamentId }) {
                   onDelete={deleteMatch}
                   onSaveScore={handleSaveScore}
                   onEdit={() => setEditingMatch(match)}
-                  onClick={(m) => setEditingMatch(m)}
+                  onClick={(m) => navigate(`/match/${m.id}`)}
                 />
               ))}
             </div>
@@ -284,7 +286,7 @@ export default function MatchesTab({ tournamentId }) {
             onDelete={deleteMatch}
             onSaveScore={handleSaveScore}
             onEdit={() => setEditingMatch(match)}
-            onClick={(m) => setEditingMatch(m)}
+            onClick={(m) => navigate(`/match/${m.id}`)}
           />
         ))}
         

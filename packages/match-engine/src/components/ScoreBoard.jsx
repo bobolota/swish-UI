@@ -1,35 +1,51 @@
 import React from 'react';
-import { CardHeader, Badge } from '@swish/ui';
 
-export function ScoreBoard({ matchData, homeScore, awayScore, timeRemaining, isRunning }) {
-  if (!matchData) return null;
-
+export function ScoreBoard({
+  time = "10:00",
+  period = "Q1",
+  homeTeam = { name: "LOCAUX", score: 0, color: "bg-blue-600" },
+  awayTeam = { name: "VISITEURS", score: 0, color: "bg-red-600" }
+}) {
   return (
-    <CardHeader className="text-center bg-slate-900 text-white pb-8">
-      <Badge variant={isRunning ? "destructive" : "secondary"} className="w-fit mx-auto mb-4">
-        {isRunning ? '🔴 EN DIRECT' : matchData.status === 'finished' ? 'TERMINE' : 'EN ATTENTE'}
-      </Badge>
+    <div className="bg-slate-900 text-white rounded-2xl p-6 md:p-8 shadow-2xl font-mono flex flex-col items-center border-4 border-slate-800 w-full max-w-4xl mx-auto">
       
-      <div className="flex justify-between items-center px-2">
-        <div className="text-center w-1/4 space-y-2">
-          <p className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">{matchData.home.name}</p>
-          <p className="text-5xl sm:text-6xl font-black tabular-nums">{homeScore}</p>
-        </div>
+      {/* En-tête : Temps & Période */}
+      <div className="flex flex-col items-center mb-8">
+        <span className="text-yellow-400 text-xl md:text-2xl font-bold mb-1 tracking-widest uppercase">
+          {period}
+        </span>
+        <span className="text-7xl md:text-9xl font-black tracking-wider leading-none tabular-nums">
+          {time}
+        </span>
+      </div>
+
+      {/* Zone des Scores */}
+      <div className="w-full flex justify-between items-center px-2 md:px-12">
         
-        {/* LA ZONE DU CHRONO : Plus large et plus voyante */}
-        <div className="text-center w-2/4 px-2">
-          <div className="bg-black p-3 sm:p-4 rounded-xl border-2 border-slate-700 shadow-inner">
-            <p className="text-6xl sm:text-7xl md:text-8xl font-black font-mono text-yellow-400 tabular-nums tracking-tighter">
-              {Math.floor(timeRemaining / 60).toString().padStart(2, '0')}:{(timeRemaining % 60).toString().padStart(2, '0')}
-            </p>
+        {/* Équipe Domicile (Home) */}
+        <div className="flex flex-col items-center w-5/12">
+          <span className="text-slate-400 text-lg md:text-2xl font-bold mb-4 truncate w-full text-center">
+            {homeTeam.name}
+          </span>
+          <div className={`w-full aspect-square max-w-[180px] flex items-center justify-center rounded-xl ${homeTeam.color} shadow-inner border-2 border-white/10`}>
+            <span className="text-7xl md:text-8xl font-black tabular-nums">{homeTeam.score}</span>
           </div>
         </div>
-        
-        <div className="text-center w-1/4 space-y-2">
-          <p className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">{matchData.away.name}</p>
-          <p className="text-5xl sm:text-6xl font-black tabular-nums">{awayScore}</p>
+
+        {/* Séparateur Central */}
+        <div className="text-4xl md:text-6xl text-slate-600 font-black flex-shrink-0">-</div>
+
+        {/* Équipe Extérieure (Away) */}
+        <div className="flex flex-col items-center w-5/12">
+          <span className="text-slate-400 text-lg md:text-2xl font-bold mb-4 truncate w-full text-center">
+            {awayTeam.name}
+          </span>
+          <div className={`w-full aspect-square max-w-[180px] flex items-center justify-center rounded-xl ${awayTeam.color} shadow-inner border-2 border-white/10`}>
+            <span className="text-7xl md:text-8xl font-black tabular-nums">{awayTeam.score}</span>
+          </div>
         </div>
+
       </div>
-    </CardHeader>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 export default {
   plugins: {
-    tailwindcss: {},
+    // 👇 C'est ici que ça change : on utilise le nouveau package
+    '@tailwindcss/postcss': {}, 
     autoprefixer: {},
   },
 }

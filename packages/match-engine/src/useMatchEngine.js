@@ -39,7 +39,7 @@ export function useMatchEngine(matchId) {
     // 2. Récupérer la feuille de match (les événements)
     const { data: eventData } = await supabase
       .from('match_events')
-      .select('*, profile:profiles(username)')
+      .select('*, player:players(name)') 
       .eq('match_id', matchId)
       .order('created_at', { ascending: false });
 
@@ -86,20 +86,19 @@ export function useMatchEngine(matchId) {
   };
 
   // --- ACTIONS DE JEU (Ajouter des points) ---
-  const addEvent = async (teamId, profileId, type, points = 0) => {
+  const addEvent = async (teamId, playerId, type, points = 0) => {
     if (!matchData) return { error: "Match introuvable" };
 
-    // 1. Enregistrer l'action dans l'historique
     const { data: newEvent, error: eventError } = await supabase
       .from('match_events')
       .insert([{
         match_id: matchData.id,
         team_id: teamId,
-        profile_id: profileId,
+        players_id: playerId, // 👈 TA nouvelle colonne !
         event_type: type,
         match_time_seconds: timeRemaining
       }])
-      .select('*, profile:profiles(username)')
+      .select('*, player:players(name)') // On récupère le nom pour l'affichage direct
       .single();
 
     if (eventError) return { error: eventError };

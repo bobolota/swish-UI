@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { ArrowLeftRight } from 'lucide-react'; // 👈 NOUVEAU : l'icône du bouton
 
 export function AdminLayout({ 
   appName = "Swish OS", 
@@ -21,6 +22,19 @@ export function AdminLayout({
     setIsMobileMenuOpen(false);
   };
 
+  // 👇 NOUVEAU : Le bouton pour retourner à l'espace Joueur
+  // J'ai adapté les couleurs (bg-slate-800) pour qu'il s'intègre parfaitement
+  // sur le fond sombre de ta Sidebar existante (bg-slate-900).
+  const BackToPlayerButton = (
+    <a 
+      href="http://localhost:5174" // Assure-toi que c'est bien le port de ton app joueur
+      className="flex items-center justify-center gap-2 w-full py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 hover:border-slate-600 rounded-lg transition-all text-sm font-semibold shadow-sm"
+    >
+      <ArrowLeftRight className="w-4 h-4" />
+      Mode Joueur
+    </a>
+  );
+
   return (
     <div className="min-h-screen flex bg-slate-50 text-slate-900 overflow-hidden">
       
@@ -39,6 +53,7 @@ export function AdminLayout({
         handleTabChange={handleTabChange} 
         logout={logout} 
         isOpen={isMobileMenuOpen}
+        footerContent={BackToPlayerButton} // 👈 NOUVEAU : On injecte le bouton ici !
       />
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '@swish/ui'; 
 import { Clock, MapPin, Trash2, Edit3, User, ClipboardList, Check, X } from 'lucide-react';
 
-export function MatchCard({ match, profiles = [], onSaveScore, onDelete, onEdit, teams = [] }) {
+export function MatchCard({ match, profiles = [], onSaveScore, onClick, onDelete, onEdit, teams = [] }) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [localHomeScore, setLocalHomeScore] = useState(match.home_score ?? '');
@@ -13,7 +13,8 @@ export function MatchCard({ match, profiles = [], onSaveScore, onDelete, onEdit,
     setLocalAwayScore(match.away_score ?? '');
   }, [match.home_score, match.away_score]);
 
-  const handleValidate = () => {
+  const handleValidate = (e) => {
+    e.stopPropagation(); // 👈 Ajout de stopPropagation
     const hScore = localHomeScore === '' ? null : Number(localHomeScore);
     const aScore = localAwayScore === '' ? null : Number(localAwayScore);
     
@@ -21,7 +22,8 @@ export function MatchCard({ match, profiles = [], onSaveScore, onDelete, onEdit,
     setIsEditing(false); 
   };
 
-  const handleCancel = () => {
+  const handleCancel = (e) => {
+    e.stopPropagation(); // 👈 Ajout de stopPropagation
     setLocalHomeScore(match.home_score ?? '');
     setLocalAwayScore(match.away_score ?? '');
     setIsEditing(false);
@@ -73,7 +75,11 @@ export function MatchCard({ match, profiles = [], onSaveScore, onDelete, onEdit,
   const displayAwayTeam = awayTeamInfo?.name || match.away_team_id?.substring(0, 8) || 'Équipe Extérieur';
 
   return (
-    <Card className={`p-4 pb-14 relative group transition-all border bg-white ${isEditing ? 'border-indigo-400 shadow-md ring-1 ring-indigo-400' : 'border-slate-200 hover:border-slate-300'}`}>
+    
+    <Card 
+      onClick={() => { if (!isEditing && onClick) onClick(match); }} // 👈 Ajout du onClick et on s'assure qu'on ne navigue pas en mode édition
+      className={`p-4 pb-14 relative group transition-all border bg-white cursor-pointer ${isEditing ? 'border-indigo-400 shadow-md ring-1 ring-indigo-400' : 'border-slate-200 hover:border-slate-300'}`} // 👈 Ajout de cursor-pointer
+    >
       
       {/* En-tête : Statut, Étape, Date/Heure et Terrain */}
       <div className="flex justify-between items-start mb-4 border-b border-slate-100 pb-3">
@@ -123,13 +129,14 @@ export function MatchCard({ match, profiles = [], onSaveScore, onDelete, onEdit,
               type="number" 
               value={localHomeScore}
               onChange={(e) => setLocalHomeScore(e.target.value)}
+              onClick={(e) => e.stopPropagation()} // 👈 Bloque le clic pour l'input
               className="w-16 text-xl font-black text-center text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               autoFocus
             />
           ) : (
             <span 
-              onClick={() => setIsEditing(true)}
-              className="text-xl font-black text-slate-800 bg-slate-50 px-3 py-1 rounded-lg min-w-[3rem] text-center cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+              onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} // 👈 StopPropagation ici aussi
+              className="text-xl font-black text-slate-800 bg-slate-50 px-3 py-1 rounded-lg min-w-[3rem] text-center hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
               title="Cliquez pour modifier"
             >
               {match.home_score ?? '-'}
@@ -147,12 +154,13 @@ export function MatchCard({ match, profiles = [], onSaveScore, onDelete, onEdit,
               type="number" 
               value={localAwayScore}
               onChange={(e) => setLocalAwayScore(e.target.value)}
+              onClick={(e) => e.stopPropagation()} // 👈 Bloque le clic pour l'input
               className="w-16 text-xl font-black text-center text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           ) : (
             <span 
-              onClick={() => setIsEditing(true)}
-              className="text-xl font-black text-slate-800 bg-slate-50 px-3 py-1 rounded-lg min-w-[3rem] text-center cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+              onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} // 👈 StopPropagation ici aussi
+              className="text-xl font-black text-slate-800 bg-slate-50 px-3 py-1 rounded-lg min-w-[3rem] text-center hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
               title="Cliquez pour modifier"
             >
               {match.away_score ?? '-'}
