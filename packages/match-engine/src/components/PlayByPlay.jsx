@@ -1,27 +1,35 @@
 import React from 'react';
-import { Trash2, Clock, User } from 'lucide-react';
+import { Trash2, Clock, Users } from 'lucide-react';
 
-export function PlayByPlay({ events = [], onUndo, homeTeamId }) {
+export function PlayByPlay({ events = [], onUndo, homeTeamId, currentConfig }) {
   
-  // Petit helper pour formater le temps (ex: 420s -> 07:00)
   const formatMatchTime = (seconds) => {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
   };
 
-  // Dictionnaire pour traduire les types d'événements proprement
-  const EVENT_LABELS = {
-    '3pt_made': 'Panier à 3pts',
-    '2pt_made': 'Panier à 2pts',
-    'free_throw': 'Lancer-franc',
-    'foul': 'Faute',
-    'assist': 'Passe décisive',
-    'def_rebound': 'Rebond Défensif',
-    'off_rebound': 'Rebond Offensif',
-    'steal': 'Interception',
-    'block': 'Contre',
-    'turnover': 'Perte de balle'
+  const translateEvent = (eventType) => {
+    if (eventType === 'sub_in') return 'Entrée en jeu';
+    if (eventType === 'sub_out') return 'Sortie';
+    if (eventType === 'timeout') return 'Temps Mort'; // Traduction spécifique pour le TM
+
+    if (!currentConfig || !currentConfig.actions) return eventType;
+
+    for (const action of currentConfig.actions) {
+      if (action.type === eventType) {
+        return action.label;
+      }
+      
+      if (action.outcomes) {
+        const matchingOutcome = action.outcomes.find(o => `${action.type}${o.suffix}` === eventType);
+        if (matchingOutcome) {
+          return `${action.label} - ${matchingOutcome.label}`;
+        }
+      }
+    }
+
+    return eventType;
   };
 
   return (
@@ -42,40 +50,61 @@ export function PlayByPlay({ events = [], onUndo, homeTeamId }) {
             Aucun événement enregistré pour le moment.
           </div>
         ) : (
-          events.map((event, index) => (
-            <div 
-              key={event.id || index} 
-              className={`flex items-center justify-between p-3 rounded-xl border transition-all hover:shadow-md ${
-                event.team_id === homeTeamId 
-                  ? 'bg-blue-50/30 border-blue-100' 
-                  : 'bg-red-50/30 border-red-100'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-2 h-8 rounded-full ${event.team_id === homeTeamId ? 'bg-blue-500' : 'bg-red-500'}`} />
-                <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase">
-                    {formatMatchTime(event.match_time_seconds)}
-                  </div>
-                  <div className="font-bold text-slate-800 text-sm">
-                    {event.player?.name || "Joueur inconnu"}
-                  </div>
-                  <div className="text-xs text-slate-500 font-medium">
-                    {EVENT_LABELS[event.event_type] || event.event_type}
+          events.map((event, index) => {
+            // 👇 LOGIQUE DU NOM : On gère spécifiquement les actions d'équipe
+            const isTeamAction = !event.player_id && !event.player;
+            let displayName = "Joueur inconnu";
+            
+            if (isTeamAction) {
+              displayName = "ACTION D'ÉQUIPE";
+            } else if (event.player?.name) {
+              displayName = event.player.name;
+            }
+
+            return (
+              <div 
+                key={event.id || index} 
+                className={`flex items-center justify-between p-3 rounded-xl border transition-all hover:shadow-md ${
+                  event.team_id === homeTeamId 
+                    ? 'bg-blue-50/30 border-blue-100' 
+                    : 'bg-red-50/30 border-red-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-2 h-8 rounded-full ${event.team_id === homeTeamId ? 'bg-blue-500' : 'bg-red-500'}`} />
+                  <div>
+                    <div className="text-xs font-bold text-slate-400 uppercase">
+                      {formatMatchTime(event.match_time_seconds)}
+                    </div>
+                    
+                    {/* AFFICHAGE DU NOM (Joueur ou Équipe) */}
+                    <div className={`font-bold text-sm flex items-center gap-1 ${isTeamAction ? 'text-amber-600' : 'text-slate-800'}`}>
+                      {isTeamAction && <Users className="w-3 h-3" />}
+                      {displayName}
+                    </div>
+                    
+                    <div className="text-xs text-slate-500 font-medium">
+                      {translateEvent(event.event_type)} 
+                      
+                      {event.points > 0 && (
+                        <span className="ml-1 font-black text-emerald-600">
+                          (+{event.points} pts)
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Bouton Annuler (Uniquement pour la dernière action idéalement, ou toutes) */}
-              <button 
-                onClick={() => onUndo(event)}
-                className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                title="Annuler cette action"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))
+                <button 
+                  onClick={() => onUndo(event)}
+                  className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Annuler cette action"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            );
+          })
         )}
       </div>
     </div>

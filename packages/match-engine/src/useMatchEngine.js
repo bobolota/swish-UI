@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@swish/core';
 import { toast } from 'sonner'; // 👈 NOUVEAU : Indispensable pour tes messages de succès
 
@@ -12,18 +12,21 @@ export function useMatchEngine(matchId) {
   const [isRunning, setIsRunning] = useState(false);
   const [homeScore, setHomeScore] = useState(0);
   const [awayScore, setAwayScore] = useState(0);
+  const [currentPeriod, setCurrentPeriod] = useState(1);
 
-  // --- LECTURE INITIALE ---
   const fetchMatch = useCallback(async () => {
     if (!matchId) {
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    // 👇 CORRECTION ICI : "data: match" au lieu de "data: matchInfo"
     const { data: match, error: matchError } = await supabase
       .from('matches')
-      .select('*, home:teams!home_team_id(*), away:teams!away_team_id(*)')
+      .select(`
+        *,
+        tournaments ( sport_id ) 
+      `) 
       .eq('id', matchId)
       .single();
 
@@ -85,12 +88,11 @@ export function useMatchEngine(matchId) {
     return () => clearInterval(interval);
   }, [isRunning]);
 
-  // 2. Le Surveillant de fin de match
+  // Le Buzzer : Arrête le chrono à 0, mais ne bloque rien d'autre !
   useEffect(() => {
-    if (timeRemaining <= 0 && isRunning) {
+    if (timeRemaining === 0 && isRunning) {
       setIsRunning(false);
-      updateMatchStatus('finished');
-      toast.info("Fin du temps réglementaire !");
+      // Optionnel : toast.info("Fin de la période !");
     }
   }, [timeRemaining, isRunning]);
 
@@ -182,10 +184,47 @@ export function useMatchEngine(matchId) {
     }
   };
 
+  // --- CALCUL DES JOUEURS SUR LE TERRAIN ---
+  const onCourtIds = useMemo(() => {
+    const currentlyOnCourt = new Set();
+    const processedPlayers = new Set();
+
+    // On parcourt l'historique du plus récent au plus ancien
+    for (const event of events) {
+      if (event.event_type === 'sub_in' || event.event_type === 'sub_out') {
+        // Si c'est la première fois qu'on voit ce joueur dans la liste
+        if (!processedPlayers.has(event.player_id)) {
+          processedPlayers.add(event.player_id);
+          
+          // S'il est "entré", on l'ajoute à la liste des joueurs sur le terrain
+          if (event.event_type === 'sub_in') {
+            currentlyOnCourt.add(event.player_id);
+          }
+        }
+      }
+    }
+    return currentlyOnCourt;
+  }, [events]);
+
+  const goToNextPeriod = (config) => {
+    const nextPeriodNum = currentPeriod + 1;
+    setCurrentPeriod(nextPeriodNum);
+    
+    // On donne le bon temps selon si c'est une période normale ou une prolongation
+    if (nextPeriodNum > config.totalPeriods) {
+      setTimeRemaining(config.overtimeLength || 300);
+    } else {
+      setTimeRemaining(config.periodLength || 600);
+    }
+    
+    setIsRunning(false);
+  };
+
   // 👇 LA CORRECTION MAGIQUE EST ICI : on exporte bien removeEvent !
   return {
     matchData, events, loading, 
     timeRemaining, isRunning, homeScore, awayScore,
-    toggleTimer, updateMatchStatus, addEvent, removeEvent, fetchMatch
+    toggleTimer, updateMatchStatus, addEvent, removeEvent, fetchMatch, onCourtIds,
+    currentPeriod, goToNextPeriod
   };
 }

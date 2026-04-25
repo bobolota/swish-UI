@@ -1,25 +1,142 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-// 👇 1. CORRECTION : Ajout de PlayByPlay dans l'import
-import { ScoreBoard, ScoreButton, useMatchEngine, PlayByPlay } from '@swish/match-engine';
+import { ScoreBoard, useMatchEngine, PlayByPlay, CommandCenter, MatchTimer, StarterSelection, SPORT_CONFIGS } from '@swish/match-engine';
 import { TeamRosterPanel } from '@swish/roster';
-import { Play, Pause, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function ActiveMatch() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // 👇 2. CORRECTION : Ajout de events et removeEvent
+  // 1. TOUS LES HOOKS STANDARDS
   const { 
     matchData, loading, 
     timeRemaining, isRunning, homeScore, awayScore,
-    toggleTimer, addEvent, events, removeEvent 
+    toggleTimer, addEvent, events, removeEvent, onCourtIds, updateMatchStatus,
+    currentPeriod, goToNextPeriod
   } = useMatchEngine(id);
 
+  const [timeoutTimer, setTimeoutTimer] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
+  const [subSelection, setSubSelection] = useState({ in: [], out: [] });
+  const [tempStarters, setTempStarters] = useState(new Set());
 
-  if (loading) return <div className="flex justify-center items-center h-full">Chargement du match...</div>;
+  // 2. LA CONFIGURATION
+  const sportId = matchData?.tournaments?.sport_id;
+  const currentConfig = SPORT_CONFIGS[sportId] || SPORT_CONFIGS['basketball'];
+  const MAX_PLAYERS = currentConfig.playersOnCourt; 
+  const currentActions = currentConfig.actions;
+
+  // 3. LE USEMEMO (Calculateur intelligent par dictionnaire)
+  const playerStats = useMemo(() => {
+    const stats = {};
+    if (!events || !Array.isArray(events)) return stats;
+
+    events.forEach(event => {
+      const pId = event.player_id || event.player?.id;
+      if (!pId) return;
+      
+      // On initialise le joueur
+      if (!stats[pId]) {
+        stats[pId] = { points: 0, fouls: 0, ast: 0, reb: 0, stl: 0, blk: 0 };
+      }
+      
+      const type = event.event_type;
+      let actionPoints = 0;
+      let isFoul = false;
+
+      // 👇 NOUVEAU : On cherche la valeur de l'action directement dans la configuration !
+      if (currentConfig && currentConfig.actions) {
+        for (const action of currentConfig.actions) {
+          // Cas A : Action simple (ex: 'foul')
+          if (action.type === type) {
+            actionPoints = action.points || 0;
+            isFoul = action.isFoul || false;
+            break;
+          }
+          // Cas B : Action avec issue (ex: '3pt_made')
+          if (action.outcomes) {
+            const matchingOutcome = action.outcomes.find(o => `${action.type}${o.suffix}` === type);
+            if (matchingOutcome) {
+              actionPoints = matchingOutcome.points || 0;
+              isFoul = action.isFoul || false;
+              break;
+            }
+          }
+        }
+      }
+
+      // On ajoute les vrais points trouvés dans le dictionnaire !
+      stats[pId].points += actionPoints;
+      if (isFoul) stats[pId].fouls += 1;
+
+      // Les autres stats
+      if (type === 'assist') stats[pId].ast += 1;
+      if (type === 'def_rebound' || type === 'off_rebound') stats[pId].reb += 1;
+      if (type === 'steal') stats[pId].stl += 1;
+      if (type === 'block') stats[pId].blk += 1;
+    });
+    
+    return stats;
+  }, [events, currentConfig]);
+  
+  // --- GESTION DES TEMPS MORTS ---
+  // 1. Le mini-chronomètre de 60 secondes
+  React.useEffect(() => {
+    if (timeoutTimer !== null && timeoutTimer > 0) {
+      const interval = setInterval(() => setTimeoutTimer(t => t - 1), 1000);
+      return () => clearInterval(interval);
+    } else if (timeoutTimer === 0) {
+      toast.info("Fin du temps mort ! Reprise du jeu.");
+      setTimeoutTimer(null); // On cache le chrono
+    }
+  }, [timeoutTimer]);
+
+  // 2. La fonction pour déclencher un temps mort
+  const handleCallTimeout = (teamId) => {
+    if (isRunning) toggleTimer(); // On coupe le chrono principal !
+    addEvent(teamId, null, 'timeout', 0); // On enregistre l'événement (sans joueur)
+    setTimeoutTimer(currentConfig.timeoutDuration || 60); // On lance les 60s
+  };
+
+  // 3. On compte combien chaque équipe a pris de temps morts
+  const timeoutsCount = useMemo(() => {
+    let home = 0, away = 0;
+    if (!events) return { home, away };
+    
+    events.forEach(e => {
+      if (e.event_type === 'timeout') {
+        if (e.team_id === matchData?.home_team_id) home++;
+        if (e.team_id === matchData?.away_team_id) away++;
+      }
+    });
+    return { home, away };
+  }, [events, matchData]);
+
+  const MAX_TM = currentConfig.timeoutsPerHalf || 0;
+
+  // 4. LES "EARLY RETURNS" (Après TOUS les hooks)
+  if (loading) return <div className="flex justify-center items-center h-full">Chargement...</div>;
   if (!matchData) return <div className="text-center text-red-500 p-10">Match introuvable.</div>;
+
+  // 5. LES VARIABLES DÉRIVÉES ET FONCTIONS
+  const isSettingStarters = onCourtIds ? onCourtIds.size === 0 : true;
+
+  const handleConfirmStarters = async () => {
+    // 👈 CORRECTION : On utilise MAX_PLAYERS * 2
+    if (tempStarters.size !== MAX_PLAYERS * 2) return;
+
+    tempStarters.forEach(playerId => {
+      const player = [...matchData.homeRoster, ...matchData.awayRoster].find(p => p.id === playerId);
+      if (player) {
+        addEvent(player.team_id, player.id, 'sub_in', 0);
+      }
+    });
+    
+    await updateMatchStatus('paused');
+    toast.success(`Le ${MAX_PLAYERS} majeur est validé ! En attente du coup d'envoi...`);
+  };
 
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -27,94 +144,204 @@ export default function ActiveMatch() {
     return `${m}:${s}`;
   };
 
-  const handleActionSelect = (points, type, label) => {
-    setPendingAction({ points, type, label });
+  const handleActionSelect = (action) => {
+    setPendingAction(action);
+    setSelectedPlayerId(null);
+    setSubSelection({ in: [], out: [] });
   };
 
-  const handlePlayerSelect = (player, teamId) => {
+  const handlePlayerClick = (player, teamId) => {
+    if (isSettingStarters) {
+      const isAlreadySelected = tempStarters.has(player.id);
+
+      if (isAlreadySelected) {
+        setTempStarters(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(player.id);
+          return newSet;
+        });
+      } else {
+        let playersFromThisTeamCount = 0;
+        tempStarters.forEach(id => {
+          const p = [...matchData.homeRoster, ...matchData.awayRoster].find(x => x.id === id);
+          if (p && p.team_id === teamId) playersFromThisTeamCount++;
+        });
+
+        // 👈 CORRECTION : On utilise MAX_PLAYERS
+        if (playersFromThisTeamCount >= MAX_PLAYERS) {
+          toast.error(`Vous ne pouvez pas sélectionner plus de ${MAX_PLAYERS} titulaires pour cette équipe !`);
+          return;
+        }
+
+        setTempStarters(prev => {
+          const newSet = new Set(prev);
+          newSet.add(player.id);
+          return newSet;
+        });
+      }
+      return; 
+    }
+
+    if (pendingAction?.type === 'sub') {
+      const isCurrentlyOnCourt = onCourtIds.has(player.id);
+      
+      setSubSelection(prev => {
+        if (isCurrentlyOnCourt) {
+          const isSelected = prev.out.includes(player.id);
+          return { ...prev, out: isSelected ? prev.out.filter(id => id !== player.id) : [...prev.out, player.id] };
+        } else {
+          const isSelected = prev.in.includes(player.id);
+          return { ...prev, in: isSelected ? prev.in.filter(id => id !== player.id) : [...prev.in, player.id] };
+        }
+      });
+      return; 
+    }
+
     if (!pendingAction) return; 
-    addEvent(teamId, player.id, pendingAction.type, pendingAction.points);
-    setPendingAction(null);
+
+    if (pendingAction.outcomes) {
+      setSelectedPlayerId(player.id);
+    } else {
+      addEvent(teamId, player.id, pendingAction.type, pendingAction.points);
+      setPendingAction(null);
+    }
   };
 
-  const MATCH_ACTIONS = [
-    { type: 'free_throw', label: '+1 LF', points: 1, category: 'primary', color: 'bg-emerald-500' },
-    { type: '2pt_made',   label: '+2 Pts', points: 2, category: 'primary', color: 'bg-emerald-600' },
-    { type: '3pt_made',   label: '+3 Pts', points: 3, category: 'primary', color: 'bg-emerald-700' },
-    { type: 'foul',       label: 'Faute',  points: 0, category: 'primary', color: 'bg-red-600' },
-    { type: 'assist',     label: 'Passe',  points: 0, category: 'secondary', color: 'bg-indigo-500' },
-    { type: 'def_rebound',label: 'Reb Def',points: 0, category: 'secondary', color: 'bg-teal-500' },
-    { type: 'off_rebound',label: 'Reb Off',points: 0, category: 'secondary', color: 'bg-teal-600' },
-    { type: 'steal',      label: 'Interc.',points: 0, category: 'secondary', color: 'bg-amber-500' },
-    { type: 'block',      label: 'Contre', points: 0, category: 'secondary', color: 'bg-amber-600' },
-    { type: 'turnover',   label: 'Perte',  points: 0, category: 'secondary', color: 'bg-orange-600' },
-  ];
+  const handleActionOutcome = (player, teamId, outcome) => {
+    const finalType = `${pendingAction.type}${outcome.suffix}`;
+    addEvent(teamId, player.id, finalType, outcome.points);
+    setPendingAction(null);
+    setSelectedPlayerId(null);
+  };
+  
+  const homeSelectedCount = Array.from(tempStarters).filter(id => matchData?.homeRoster?.some(p => p.id === id)).length;
+  const awaySelectedCount = Array.from(tempStarters).filter(id => matchData?.awayRoster?.some(p => p.id === id)).length;
+  
+  // 👈 CORRECTION : On utilise MAX_PLAYERS
+  const canStartMatch = homeSelectedCount === MAX_PLAYERS && awaySelectedCount === MAX_PLAYERS;
+
+  const handleConfirmSub = () => {
+    if (subSelection.in.length === 0) return;
+    if (subSelection.in.length !== subSelection.out.length) {
+      toast.error("Le nombre d'entrants et de sortants doit être identique !");
+      return;
+    }
+
+    subSelection.out.forEach(playerId => {
+      const player = [...matchData.homeRoster, ...matchData.awayRoster].find(p => p.id === playerId);
+      if (player) addEvent(player.team_id, player.id, 'sub_out', 0);
+    });
+
+    subSelection.in.forEach(playerId => {
+      const player = [...matchData.homeRoster, ...matchData.awayRoster].find(p => p.id === playerId);
+      if (player) addEvent(player.team_id, player.id, 'sub_in', 0);
+    });
+
+    setSubSelection({ in: [], out: [] });
+    setPendingAction(null);
+    toast.success("Remplacement effectué !");
+  };
+
+  const isOvertime = currentPeriod > currentConfig.totalPeriods;
+  const periodLabel = isOvertime 
+    ? `${currentConfig.overtimePrefix}${currentPeriod - currentConfig.totalPeriods}` 
+    : `${currentConfig.periodPrefix}${currentPeriod}`;
+
+  // Forcer le passage à la période suivante (même s'il reste du temps)
+  const handleManualNextPeriod = () => {
+    if (window.confirm("Passer manuellement à la période suivante ?")) {
+      goToNextPeriod(currentConfig);
+      toast.info("Passage manuel à la période " + (currentPeriod + 1));
+    }
+  };
+
+  // Forcer la fin définitive du match
+  const handleManualEndMatch = async () => {
+    if (window.confirm("Mettre fin définitivement au match et sceller le score ?")) {
+      await updateMatchStatus('finished');
+      toast.success("Match terminé ! Score final enregistré.");
+      navigate('/matches'); // Ou vers une page de résumé
+    }
+  };  
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10">
-      
       <ScoreBoard 
         time={formatTime(timeRemaining)}
-        period="Q1"
-        homeTeam={{ name: matchData.home?.name || "DOMICILE", score: homeScore, color: "bg-blue-600" }}
-        awayTeam={{ name: matchData.away?.name || "EXTÉRIEUR", score: awayScore, color: "bg-red-600" }}
+        period={periodLabel}
+        maxTimeouts={MAX_TM}
+        homeTeam={{ 
+          name: matchData.home?.name || "DOMICILE", 
+          score: homeScore, 
+          color: "bg-blue-600",
+          timeoutsRemaining: Math.max(0, MAX_TM - timeoutsCount.home),
+          onCallTimeout: () => handleCallTimeout(matchData.home_team_id)
+        }}
+        awayTeam={{ 
+          name: matchData.away?.name || "EXTÉRIEUR", 
+          score: awayScore, 
+          color: "bg-red-600",
+          timeoutsRemaining: Math.max(0, MAX_TM - timeoutsCount.away),
+          onCallTimeout: () => handleCallTimeout(matchData.away_team_id)
+        }}
       />
 
-      <div className="flex justify-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-        <button onClick={toggleTimer} className={`flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-white transition-all ${isRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}>
-          {isRunning ? <><Pause /> PAUSE</> : <><Play /> REPRENDRE</>}
-        </button>
-      </div>
-
-      <div className="bg-slate-900 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <h3 className="text-white font-bold mb-6 uppercase tracking-widest text-sm text-center text-slate-400">
-          {pendingAction ? `JOUEUR POUR : ${pendingAction.label}` : '1. SÉLECTIONNEZ UNE ACTION'}
-        </h3>
-        
-        <div className="flex flex-wrap justify-center gap-4 mb-8">
-          {MATCH_ACTIONS.filter(a => a.category === 'primary').map(action => (
-            <button
-              key={action.type}
-              onClick={() => handleActionSelect(action.points, action.type, action.label)}
-              className={`px-6 py-4 rounded-xl font-bold text-white transition-all shadow-lg active:scale-95 ${
-                pendingAction?.type === action.type ? `${action.color} ring-4 ring-white` : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-              }`}
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap justify-center gap-2 pt-6 border-t border-slate-700/50">
-          {MATCH_ACTIONS.filter(a => a.category === 'secondary').map(action => (
-            <button
-              key={action.type}
-              onClick={() => handleActionSelect(action.points, action.type, action.label)}
-              className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tight transition-all active:scale-95 ${
-                pendingAction?.type === action.type ? `${action.color} text-white shadow-md` : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>
-
-        {pendingAction && (
-          <button onClick={() => setPendingAction(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white flex items-center gap-1 text-sm font-bold bg-slate-800/50 py-1 px-2 rounded-md">
-            <X className="w-4 h-4"/> Annuler
+      {/* BANNIÈRE DE TEMPS MORT EN COURS */}
+      {timeoutTimer !== null && (
+        <div className="bg-amber-500 text-white font-black text-3xl py-4 rounded-2xl text-center animate-pulse shadow-lg flex items-center justify-center gap-4">
+          <span>⏳ TEMPS MORT</span>
+          <span className="font-mono bg-black/20 px-4 py-1 rounded-lg">{timeoutTimer}s</span>
+          <button 
+            onClick={() => setTimeoutTimer(null)} 
+            className="text-sm bg-white text-amber-500 px-3 py-2 rounded-lg hover:bg-amber-50 ml-4"
+          >
+            Reprendre
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* LES ROSTERS */}
+      <MatchTimer 
+        isRunning={isRunning} 
+        onToggle={toggleTimer} 
+        timeRemaining={timeRemaining}
+        onNextPeriod={() => goToNextPeriod(currentConfig)}
+      />
+
+      {isSettingStarters ? (
+        <StarterSelection 
+          canStartMatch={canStartMatch}
+          onConfirm={handleConfirmStarters}
+          homeSelectedCount={homeSelectedCount}
+          awaySelectedCount={awaySelectedCount}
+          maxPlayers={MAX_PLAYERS}
+        />
+      ) : (
+        <CommandCenter 
+          actions={currentActions}
+          pendingAction={pendingAction}
+          canConfirmSub={subSelection.in.length > 0 && subSelection.in.length === subSelection.out.length}
+          onActionSelect={handleActionSelect}
+          onCancel={() => { setPendingAction(null); setSelectedPlayerId(null); setSubSelection({in:[], out:[]}); }}
+          onConfirmSub={handleConfirmSub}
+        />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <TeamRosterPanel 
           title={matchData.home?.name || "Domicile"}
           teamId={matchData.home_team_id}
           roster={matchData.homeRoster}
           pendingAction={pendingAction}
-          onPlayerSelect={handlePlayerSelect}
+          selectedPlayerId={selectedPlayerId}
+          onPlayerClick={handlePlayerClick}
+          onActionOutcome={handleActionOutcome}
           colorClass="text-blue-600"
+          isSettingStarters={isSettingStarters}
+          tempStarters={tempStarters}
+          onCourtIds={onCourtIds}
+          subSelection={subSelection}
+          playerStats={playerStats}
+          maxFouls={currentConfig.maxFouls}
         />
 
         <TeamRosterPanel 
@@ -122,20 +349,27 @@ export default function ActiveMatch() {
           teamId={matchData.away_team_id}
           roster={matchData.awayRoster}
           pendingAction={pendingAction}
-          onPlayerSelect={handlePlayerSelect}
+          selectedPlayerId={selectedPlayerId}
+          onPlayerClick={handlePlayerClick}
+          onActionOutcome={handleActionOutcome}
           colorClass="text-red-600"
+          isSettingStarters={isSettingStarters}
+          tempStarters={tempStarters}
+          onCourtIds={onCourtIds}
+          subSelection={subSelection}
+          playerStats={playerStats}
+          maxFouls={currentConfig.maxFouls}
         />
       </div>
 
-      {/* 👇 3. CORRECTION : Le PlayByPlay est sorti de la grille pour prendre toute la largeur ! */}
       <div className="mt-4">
         <PlayByPlay 
           events={events} 
           onUndo={removeEvent} 
           homeTeamId={matchData.home_team_id} 
+          currentConfig={currentConfig}
         />
       </div>
-
     </div>
   );
 }

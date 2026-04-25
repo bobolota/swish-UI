@@ -1,51 +1,72 @@
 import React from 'react';
 
-export function ScoreBoard({
-  time = "10:00",
-  period = "Q1",
-  homeTeam = { name: "LOCAUX", score: 0, color: "bg-blue-600" },
-  awayTeam = { name: "VISITEURS", score: 0, color: "bg-red-600" }
-}) {
+export function ScoreBoard({ time, period, homeTeam, awayTeam, maxTimeouts }) {
+  
+  // Fonction pour dessiner les petits "points" de temps morts
+  const renderTimeouts = (remaining) => (
+    <div className="flex gap-1 mt-2">
+      {Array.from({ length: maxTimeouts || 0 }).map((_, i) => (
+        <div 
+          key={i} 
+          className={`w-3 h-3 rounded-full border-2 ${
+            i < remaining 
+              ? 'bg-amber-400 border-amber-500 shadow-[0_0_8px_rgba(251,191,36,0.8)]' // Allumé
+              : 'bg-slate-800 border-slate-700 opacity-50' // Éteint
+          }`} 
+        />
+      ))}
+    </div>
+  );
+
   return (
-    <div className="bg-slate-900 text-white rounded-2xl p-6 md:p-8 shadow-2xl font-mono flex flex-col items-center border-4 border-slate-800 w-full max-w-4xl mx-auto">
+    <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-2xl flex items-center justify-between">
       
-      {/* En-tête : Temps & Période */}
-      <div className="flex flex-col items-center mb-8">
-        <span className="text-yellow-400 text-xl md:text-2xl font-bold mb-1 tracking-widest uppercase">
-          {period}
-        </span>
-        <span className="text-7xl md:text-9xl font-black tracking-wider leading-none tabular-nums">
-          {time}
-        </span>
-      </div>
-
-      {/* Zone des Scores */}
-      <div className="w-full flex justify-between items-center px-2 md:px-12">
+      {/* ÉQUIPE DOMICILE */}
+      <div className="flex flex-col items-center flex-1">
+        <div className="text-sm font-bold text-slate-400 mb-1 uppercase tracking-widest">{homeTeam.name}</div>
+        <div className={`text-6xl font-black ${homeTeam.color.replace('bg-', 'text-')}`}>
+          {homeTeam.score}
+        </div>
+        {renderTimeouts(homeTeam.timeoutsRemaining)}
         
-        {/* Équipe Domicile (Home) */}
-        <div className="flex flex-col items-center w-5/12">
-          <span className="text-slate-400 text-lg md:text-2xl font-bold mb-4 truncate w-full text-center">
-            {homeTeam.name}
-          </span>
-          <div className={`w-full aspect-square max-w-[180px] flex items-center justify-center rounded-xl ${homeTeam.color} shadow-inner border-2 border-white/10`}>
-            <span className="text-7xl md:text-8xl font-black tabular-nums">{homeTeam.score}</span>
-          </div>
-        </div>
-
-        {/* Séparateur Central */}
-        <div className="text-4xl md:text-6xl text-slate-600 font-black flex-shrink-0">-</div>
-
-        {/* Équipe Extérieure (Away) */}
-        <div className="flex flex-col items-center w-5/12">
-          <span className="text-slate-400 text-lg md:text-2xl font-bold mb-4 truncate w-full text-center">
-            {awayTeam.name}
-          </span>
-          <div className={`w-full aspect-square max-w-[180px] flex items-center justify-center rounded-xl ${awayTeam.color} shadow-inner border-2 border-white/10`}>
-            <span className="text-7xl md:text-8xl font-black tabular-nums">{awayTeam.score}</span>
-          </div>
-        </div>
-
+        {/* Bouton Temps Mort */}
+        {maxTimeouts > 0 && (
+          <button 
+            onClick={homeTeam.onCallTimeout}
+            disabled={homeTeam.timeoutsRemaining <= 0}
+            className="mt-4 px-3 py-1 text-[10px] font-black uppercase bg-slate-800 hover:bg-slate-700 rounded text-slate-300 disabled:opacity-20 transition-all"
+          >
+            Temps Mort
+          </button>
+        )}
       </div>
+
+      {/* CHRONO ET PÉRIODE */}
+      <div className="flex flex-col items-center px-8">
+        <div className="text-yellow-400 font-black text-2xl mb-1">{period}</div>
+        <div className="text-7xl font-black font-mono tracking-tighter">{time}</div>
+      </div>
+
+      {/* ÉQUIPE EXTÉRIEURE */}
+      <div className="flex flex-col items-center flex-1">
+        <div className="text-sm font-bold text-slate-400 mb-1 uppercase tracking-widest">{awayTeam.name}</div>
+        <div className={`text-6xl font-black ${awayTeam.color.replace('bg-', 'text-')}`}>
+          {awayTeam.score}
+        </div>
+        {renderTimeouts(awayTeam.timeoutsRemaining)}
+
+        {/* Bouton Temps Mort */}
+        {maxTimeouts > 0 && (
+          <button 
+            onClick={awayTeam.onCallTimeout}
+            disabled={awayTeam.timeoutsRemaining <= 0}
+            className="mt-4 px-3 py-1 text-[10px] font-black uppercase bg-slate-800 hover:bg-slate-700 rounded text-slate-300 disabled:opacity-20 transition-all"
+          >
+            Temps Mort
+          </button>
+        )}
+      </div>
+
     </div>
   );
 }

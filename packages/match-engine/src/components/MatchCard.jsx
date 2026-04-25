@@ -55,13 +55,15 @@ export function MatchCard({ match, profiles = [], onSaveScore, onClick, onDelete
 
   const statusStyles = {
     'scheduled': 'bg-slate-100 text-slate-600',
-    'in_progress': 'bg-green-100 text-green-700 animate-pulse border border-green-200',
+    'live': 'bg-green-100 text-green-700 animate-pulse border border-green-200',
+    'paused': 'bg-green-100 text-green-700 animate-pulse border border-green-200',
     'finished': 'bg-slate-800 text-white'
   };
 
   const statusLabels = {
     'scheduled': 'À venir',
-    'in_progress': 'En cours',
+    'live': 'En cours',
+    'paused': 'En cours',
     'finished': 'Terminé'
   };
 
