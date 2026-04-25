@@ -8,7 +8,7 @@ import { ArrowLeft, UserPlus, Trash2 } from 'lucide-react'; // Icônes
 export default function TeamPlayersPage() {
   const { tournamentId, teamId } = useParams(); // Récupère les IDs depuis l'URL
   const navigate = useNavigate();
-  const { team, players, isLoading, addPlayer, togglePlayerPayment, deletePlayer } = useTeamPlayers(teamId);
+  const { team, players, isLoading, addPlayer, togglePlayerPayment, deletePlayer } = useTeamPlayers(teamId, tournamentId);
   const [newPlayerName, setNewPlayerName] = useState("");
 
   const handleAddPlayer = (e) => {

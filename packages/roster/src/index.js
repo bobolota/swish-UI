@@ -6,3 +6,4 @@ export * from './InvitePage';
 export { TeamCard } from './TeamCard';
 export { ManualTeamDialog } from './ManualTeamDialog';
 export { useTeamPlayers } from './useTeamPlayers';
+export { TeamRosterPanel } from './TeamRosterPanel.jsx';
