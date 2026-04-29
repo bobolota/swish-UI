@@ -114,16 +114,18 @@ export function useMatchEngine(matchId) {
     updateMatchStatus(newStatus);
   };
 
-  // --- ACTIONS DE JEU ---
+  // --- ACTIONS DE JEU (LIVE TRACKER OPTIMISÉ) ---
   const addEvent = async (teamId, playerId, eventType, points = 0) => {
     if (!matchData) return;
 
+    // 1. Calcul des nouveaux scores
     const newHomeScore = teamId === matchData.home_team_id ? homeScore + points : homeScore;
     const newAwayScore = teamId === matchData.away_team_id ? awayScore + points : awayScore;
     
     if (teamId === matchData.home_team_id) setHomeScore(newHomeScore);
     if (teamId === matchData.away_team_id) setAwayScore(newAwayScore);
 
+    // 2. Enregistrement de l'action dans l'historique
     const { data: newEvent, error: eventError } = await supabase
       .from('match_events')
       .insert([{
@@ -141,12 +143,19 @@ export function useMatchEngine(matchId) {
       return;
     }
 
-    if (points > 0) {
-      await supabase
-        .from('matches')
-        .update({ home_score: newHomeScore, away_score: newAwayScore })
-        .eq('id', matchData.id);
-    }
+    // 3. LE CHECKPOINT DU LIVE TRACKER 📡
+    // On met à jour le match à CHAQUE action (pas seulement quand il y a des points)
+    // Cela permet aux spectateurs de savoir que le match est toujours actif.
+    await supabase
+      .from('matches') // 👈 Corrigé ici !
+      .update({ 
+        home_score: newHomeScore, 
+        away_score: newAwayScore,
+        // Si tu as créé ces colonnes dans ta base, décommente-les !
+        // current_time: timeRemaining,
+        // current_period: currentPeriod
+      })
+      .eq('id', matchData.id);
 
     setEvents(prev => [newEvent, ...prev]);
   };
@@ -155,6 +164,7 @@ export function useMatchEngine(matchId) {
     if (!event) return;
 
     let pointsToSubtract = 0;
+    // (Tu devras peut-être rendre ça dynamique via ta config agnostique plus tard !)
     if (event.event_type === '3pt_made') pointsToSubtract = 3;
     if (event.event_type === '2pt_made') pointsToSubtract = 2;
     if (event.event_type === 'free_throw') pointsToSubtract = 1;
@@ -163,18 +173,23 @@ export function useMatchEngine(matchId) {
     const newHomeScore = isHome ? homeScore - pointsToSubtract : homeScore;
     const newAwayScore = !isHome ? awayScore - pointsToSubtract : awayScore;
 
+    // 1. Suppression de l'action
     const { error } = await supabase
       .from('match_events')
       .delete()
       .eq('id', event.id);
 
     if (!error) {
-      if (pointsToSubtract > 0) {
-        await supabase
-          .from('matches')
-          .update({ home_score: newHomeScore, away_score: newAwayScore })
-          .eq('id', matchData.id);
+      // 2. CHECKPOINT DE SYNCHRONISATION 📡
+      await supabase
+        .from('matches') // 👈 Corrigé ici aussi !
+        .update({ 
+          home_score: newHomeScore, 
+          away_score: newAwayScore 
+        })
+        .eq('id', matchData.id);
         
+      if (pointsToSubtract > 0) {
         setHomeScore(newHomeScore);
         setAwayScore(newAwayScore);
       }

@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ScoreBoard, useMatchEngine, PlayByPlay, CommandCenter, MatchTimer, StarterSelection, SPORT_CONFIGS } from '@swish/match-engine';
 import { TeamRosterPanel } from '@swish/roster';
 import { toast } from 'sonner';
+import { supabase } from '@swish/core'
+import { Tv, ChevronLeft, Settings } from 'lucide-react';
 
 export default function ActiveMatch() {
   const { id } = useParams();
@@ -80,6 +82,46 @@ export default function ActiveMatch() {
     
     return stats;
   }, [events, currentConfig]);
+
+  // LA RADIO POUR LE LIVE TRACKER (BROADCAST) 📻
+  useEffect(() => {
+    if (!matchData) return;
+
+    // On crée une station radio unique pour CE match
+    const room = supabase.channel(`live-match-${matchData.id}`);
+    room.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        // Dès qu'on est connecté, on envoie notre état actuel à ceux qui écoutent
+        await room.send({
+          type: 'broadcast',
+          event: 'match-state',
+          payload: {
+            timeRemaining,
+            isRunning,
+            currentPeriod,
+            homeScore,
+            awayScore,
+            timestamp: Date.now() // Pour la synchro précise
+          },
+        });
+      }
+    });
+
+    // À chaque fois qu'une de ces valeurs change, on renvoie un message
+    const sendUpdate = async () => {
+      await room.send({
+        type: 'broadcast',
+        event: 'match-state',
+        payload: { timeRemaining, isRunning, currentPeriod, homeScore, awayScore, timestamp: Date.now() },
+      });
+    };
+
+    sendUpdate();
+
+    return () => {
+      supabase.removeChannel(room);
+    };
+  }, [matchData?.id, timeRemaining, isRunning, currentPeriod, homeScore, awayScore]);
   
   // --- GESTION DES TEMPS MORTS ---
   // 1. Le mini-chronomètre de 60 secondes
@@ -99,6 +141,9 @@ export default function ActiveMatch() {
     addEvent(teamId, null, 'timeout', 0); // On enregistre l'événement (sans joueur)
     setTimeoutTimer(currentConfig.timeoutDuration || 60); // On lance les 60s
   };
+
+  
+  
 
   // 3. On compte combien chaque équipe a pris de temps morts
   const timeoutsCount = useMemo(() => {
@@ -255,17 +300,74 @@ export default function ActiveMatch() {
     }
   };
 
-  // Forcer la fin définitive du match
   const handleManualEndMatch = async () => {
-    if (window.confirm("Mettre fin définitivement au match et sceller le score ?")) {
-      await updateMatchStatus('finished');
-      toast.success("Match terminé ! Score final enregistré.");
-      navigate('/matches'); // Ou vers une page de résumé
+    if (window.confirm("Êtes-vous sûr de vouloir CLÔTURER définitivement ce match ? Cette action est irréversible.")) {
+      try {
+        // 1. On clôture le match (comme avant)
+        await updateMatchStatus('finished');
+
+        // 2. NOUVEAU : LA LOGIQUE D'AVANCEMENT DANS L'ARBRE 🏆
+        // On vérifie si ce match a une suite dans l'arbre (next_match_id)
+        if (matchData?.next_match_id) {
+          
+          // Sécurité : On s'assure qu'il n'y a pas d'égalité (au basket c'est rare, mais au cas où)
+          if (homeScore !== awayScore) {
+            // On trouve qui a gagné
+            const winnerId = homeScore > awayScore ? matchData.home_team_id : matchData.away_team_id;
+            
+           // On calcule si le gagnant va en case "Domicile" ou "Extérieur" au prochain match
+            const isHomeSlot = matchData.bracket_index % 2 !== 0;
+            const updateData = isHomeSlot ? { home_team_id: winnerId } : { away_team_id: winnerId };
+
+            console.log("Tentative d'envoi de :", updateData, " vers le match :", matchData.next_match_id);
+
+            // On envoie le vainqueur dans le match suivant directement via Supabase
+            const { data, error } = await supabase
+              .from('matches')
+              .update(updateData)
+              .eq('id', matchData.next_match_id)
+              .select(); // 👈 On force Supabase à nous renvoyer le résultat
+              
+            if (error) {
+               console.error("❌ ERREUR SUPABASE (Arbre) :", error);
+            } else {
+               console.log("✅ UPDATE RÉUSSI ! Le prochain match est maintenant :", data);
+            }
+          }
+        }
+
+        toast.success("Match terminé ! Score final scellé.");
+        navigate(`/matches/${id}/summary`);
+      } catch (error) {
+        console.error(error);
+        toast.error("Erreur lors de la clôture du match");
+      }
     }
-  };  
+  };
 
   return (
-    <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10">
+    <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10 pt-4"> {/* J'ai ajouté pt-4 pour aérer un peu */}
+      
+      {/* 👇 NOUVEAU BANDEAU D'EN-TÊTE 👇 */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+        <button 
+          onClick={() => navigate(-1)} 
+          className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold transition-colors"
+        >
+          <ChevronLeft className="w-5 h-5" /> Retour
+        </button>
+
+        <button
+          onClick={() => window.open(`/matches/${id}/jumbotron`, '_blank')}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-all shadow-lg active:scale-95"
+          title="Ouvrir l'affichage public"
+        >
+          <Tv className="w-4 h-4 text-amber-400" />
+          LANCER LE JUMBOTRON
+        </button>
+      </div>
+      {/* 👆 FIN DU BANDEAU 👆 */}
+      
       <ScoreBoard 
         time={formatTime(timeRemaining)}
         period={periodLabel}
@@ -305,6 +407,8 @@ export default function ActiveMatch() {
         onToggle={toggleTimer} 
         timeRemaining={timeRemaining}
         onNextPeriod={() => goToNextPeriod(currentConfig)}
+        onManualNext={handleManualNextPeriod}
+        onEndMatch={handleManualEndMatch}
       />
 
       {isSettingStarters ? (

@@ -4,6 +4,9 @@ import Dashboard from './pages/Dashboard';
 import TournamentManager from './pages/tournament'; // L'index.jsx de ton tournoi
 import TeamPlayersPage from './pages/tournament/TeamPlayersPage';
 import ActiveMatch from './pages/ActiveMatch';
+import MatchSummary from './pages/MatchSummary';
+import Jumbotron from './pages/Jumbotron';
+
 
 export default function App() {
   return (
@@ -14,6 +17,8 @@ export default function App() {
         <Route path="/tournament/:id" element={<TournamentManager />} />
         <Route path="/tournament/:tournamentId/team/:teamId" element={<TeamPlayersPage />} />
         <Route path="/match/:id" element={<ActiveMatch />} />
+        <Route path="/matches/:id/summary" element={<MatchSummary />} />
+        <Route path="/matches/:id/jumbotron" element={<Jumbotron />} />
         
         <Route path="*" element={
           <div className="flex h-screen items-center justify-center bg-slate-100">

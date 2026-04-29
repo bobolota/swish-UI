@@ -53,6 +53,8 @@ export function MatchCard({ match, profiles = [], onSaveScore, onClick, onDelete
     return `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Utilisateur';
   };
 
+  
+
   const statusStyles = {
     'scheduled': 'bg-slate-100 text-slate-600',
     'live': 'bg-green-100 text-green-700 animate-pulse border border-green-200',
@@ -75,6 +77,7 @@ export function MatchCard({ match, profiles = [], onSaveScore, onClick, onDelete
 
   const displayHomeTeam = homeTeamInfo?.name || match.home_team_id?.substring(0, 8) || 'Équipe Domicile';
   const displayAwayTeam = awayTeamInfo?.name || match.away_team_id?.substring(0, 8) || 'Équipe Extérieur';
+  
 
   return (
     

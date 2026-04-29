@@ -42,6 +42,43 @@ export default function MatchesTab({ tournamentId }) {
     fetchProfiles();
   }, []);
 
+  // 2. NOUVEAU : Récupérer les profils au chargement de la page
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      // ⚠️ Modifie 'first_name, last_name' selon les colonnes de ta table profiles !
+      const { data } = await supabase.from('profiles').select('id, first_name, last_name');
+      if (data) setProfiles(data);
+    };
+    fetchProfiles();
+  }, []);
+
+  // 👇👇👇 AJOUTE CE NOUVEAU BLOC JUSTE ICI 👇👇👇
+  useEffect(() => {
+    if (!tournamentId) return;
+
+    const channel = supabase
+      .channel('match-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'matches', // 👈 Bien écrit sans le 's' à tournament !
+          filter: `tournament_id=eq.${tournamentId}`
+        },
+        (payload) => {
+          console.log("Match mis à jour en direct par la table de marque !", payload);
+          window.location.reload(); // Rafraîchit la page tout seul
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tournamentId]);
+  // 👆👆👆 FIN DU NOUVEAU BLOC 👆👆👆
+
   const handleSaveEdit = async () => {
     // On n'envoie PLUS les scores ici, juste la logistique !
     await updateMatch(editingMatch.id, {
@@ -267,7 +304,7 @@ export default function MatchesTab({ tournamentId }) {
                   onDelete={deleteMatch}
                   onSaveScore={handleSaveScore}
                   onEdit={() => setEditingMatch(match)}
-                  onClick={(m) => navigate(`/match/${m.id}`)}
+                  onClick={(m) => navigate(`/matches/${m.id}/summary`)}
                 />
               ))}
             </div>
