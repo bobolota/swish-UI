@@ -20,12 +20,14 @@ export function useMatchEngine(matchId) {
       return;
     }
 
-    // 👇 CORRECTION ICI : "data: match" au lieu de "data: matchInfo"
+    // 👇 CORRECTION ICI : Jointures explicites sur la table 'teams'
     const { data: match, error: matchError } = await supabase
       .from('matches')
       .select(`
         *,
-        tournaments ( sport_id ) 
+        tournaments ( sport_id ),
+        home_team:teams!home_team_id(name),
+        away_team:teams!away_team_id(name)
       `) 
       .eq('id', matchId)
       .single();

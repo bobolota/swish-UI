@@ -1,74 +1,171 @@
 import React from 'react';
-import { X, Check, RefreshCcw } from 'lucide-react';
+import { X, Check, Crosshair, Shield, AlertTriangle, RefreshCw } from 'lucide-react';
 
-export function CommandCenter({ 
-  actions,          // 👈 Le tableau des boutons (injecté dynamiquement)
-  pendingAction,    // L'action cliquée
-  canConfirmSub,    // Booléen pour activer la validation du remplacement
-  onActionSelect,   // Fonction déclenchée au clic sur un bouton d'action
-  onCancel,         // Fonction pour la croix d'annulation
-  onConfirmSub      // Fonction pour valider un remplacement
+export function CommandCenter({
+  actions = [],
+  pendingAction,
+  canConfirmSub,
+  onActionSelect,
+  onCancel,
+  onConfirmSub
 }) {
-  
-  // Le composant filtre lui-même les actions reçues pour les ranger
-  const primaryActions = actions.filter(a => a.category === 'primary' || a.category === 'system');
-  const secondaryActions = actions.filter(a => a.category === 'secondary');
+
+  if (pendingAction) {
+    // --- MODE REMPLACEMENT ---
+    if (pendingAction.type === 'sub') {
+      return (
+        <div className="flex flex-col items-center justify-center h-full bg-slate-800 text-white rounded-2xl p-6 border-4 border-slate-700 shadow-xl">
+          <RefreshCw className="w-10 h-10 text-slate-400 mb-4 animate-spin-slow" />
+          <h3 className="text-xl font-black uppercase tracking-widest mb-2">Remplacement</h3>
+          <p className="text-slate-400 text-sm font-bold text-center mb-6">
+            Sélectionnez les joueurs qui entrent et sortent.
+          </p>
+          <div className="flex gap-4 w-full">
+            <button onClick={onCancel} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-black uppercase tracking-widest text-xs transition-colors border-b-4 border-slate-900">
+              Annuler
+            </button>
+            <button 
+              onClick={onConfirmSub} 
+              disabled={!canConfirmSub}
+              className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:border-slate-800 disabled:text-slate-500 rounded-xl font-black uppercase tracking-widest text-xs transition-colors border-b-4 border-emerald-800 flex items-center justify-center gap-2"
+            >
+              <Check className="w-4 h-4" /> Valider
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // --- MODE PASSE DÉCISIVE ---
+    if (pendingAction.type === 'assist_selection') {
+      return (
+        <div className="flex flex-col items-center justify-center h-full bg-slate-800 text-white rounded-2xl p-6 border-4 border-emerald-600 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+          <h3 className="text-xl font-black uppercase tracking-widest mb-2 text-emerald-400">
+            Passe Décisive ?
+          </h3>
+          <p className="text-slate-300 text-sm font-bold text-center mb-8 bg-slate-900/50 px-4 py-2 rounded-lg border border-slate-700">
+            👉 Cliquez sur le passeur de <span className="text-emerald-400">{pendingAction.teamName}</span>.
+          </p>
+          <button onClick={onCancel} className="w-full py-4 bg-slate-700 hover:bg-slate-600 rounded-xl font-black uppercase tracking-widest text-sm transition-colors border-b-4 border-slate-900 active:scale-95 text-slate-300">
+            Aucune passe (Iso/Rebond)
+          </button>
+        </div>
+      );
+    }
+
+    // --- MODE ACTION STANDARD ---
+    return (
+      <div className="flex flex-col items-center justify-center h-full bg-slate-800 text-white rounded-2xl p-6 border-4 border-slate-700 shadow-xl">
+        <h3 className="text-xl font-black uppercase tracking-widest mb-2 text-amber-400">
+          {pendingAction.label || pendingAction.type}
+        </h3>
+        <p className="text-slate-300 text-sm font-bold text-center mb-8 bg-slate-900/50 px-4 py-2 rounded-lg border border-slate-700">
+          👉 Cliquez sur un joueur pour attribuer l'action.
+        </p>
+        <button onClick={onCancel} className="w-full py-4 bg-slate-700 hover:bg-slate-600 rounded-xl font-black uppercase tracking-widest text-sm transition-colors border-b-4 border-slate-900 active:scale-95 flex items-center justify-center gap-2">
+          <X className="w-5 h-5 text-rose-400" /> Annuler l'action
+        </button>
+      </div>
+    );
+  }
+
+  const visibleActions = actions.filter(a => a.type !== 'assist');
+
+  const scoring = visibleActions.filter(a => a.type.includes('pt') || a.type.includes('free_throw'));
+  const possession = visibleActions.filter(a => ['off_rebound', 'def_rebound', 'steal', 'block'].includes(a.type));
+  const penalties = visibleActions.filter(a => ['foul', 'turnover'].includes(a.type));
+  const tactical = visibleActions.filter(a => a.type === 'sub');
+
+  const ActionButton = ({ action, colorClass, borderClass }) => (
+    <button
+      onClick={() => onActionSelect(action)}
+      className={`relative w-full h-16 flex items-center justify-center rounded-xl shadow-md transition-all active:scale-95 border-b-4 text-white font-black uppercase tracking-widest text-xs md:text-sm ${colorClass} ${borderClass}`}
+    >
+      {action.label}
+    </button>
+  );
 
   return (
-    <div className="bg-slate-900 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+    <div className="flex flex-col gap-4 h-full bg-slate-200/50 p-3 rounded-2xl overflow-y-auto border border-slate-200">
       
-      {/* 1. TITRE DYNAMIQUE */}
-      <h3 className="text-white font-bold mb-6 uppercase tracking-widest text-sm text-center text-slate-400">
-        {pendingAction?.type === 'sub' ? 'REMPLACEMENT : SORTANTS & ENTRANTS' :
-         pendingAction ? `ACTION : ${pendingAction.label}` : '1. SÉLECTIONNEZ UNE ACTION'}
-      </h3>
-      
-      {/* 2. GROS BOUTONS PRINCIPAUX */}
-      <div className="flex flex-wrap justify-center gap-4 mb-8">
-        {primaryActions.map(action => (
-          <button
-            key={action.type}
-            onClick={() => onActionSelect(action)}
-            className={`px-6 py-4 rounded-xl font-bold text-white transition-all shadow-lg active:scale-95 ${
-              pendingAction?.type === action.type ? `${action.color} ring-4 ring-white` : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-            }`}
-          >
-            {action.type === 'sub' && <RefreshCcw className="inline w-5 h-5 mr-2 -mt-1" />}
-            {action.label}
-          </button>
-        ))}
+      {/* SECTION 1 : SCORING (Vert Intense) */}
+      {scoring.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-slate-500 pl-1">
+            <Crosshair className="w-4 h-4" /> <span className="text-[10px] font-black uppercase tracking-widest">Attaque</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {scoring.map(action => (
+              <ActionButton 
+                key={action.type} 
+                action={action} 
+                colorClass="bg-emerald-600 hover:bg-emerald-500" 
+                borderClass="border-emerald-800 hover:border-emerald-700" 
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 2 : POSSESSION ET DÉFENSE (Bleu Intense) */}
+      {possession.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-slate-500 pl-1">
+            <Shield className="w-4 h-4" /> <span className="text-[10px] font-black uppercase tracking-widest">Défense & Balle</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {possession.map(action => (
+              <ActionButton 
+                key={action.type} 
+                action={action} 
+                colorClass="bg-blue-600 hover:bg-blue-500" 
+                borderClass="border-blue-800 hover:border-blue-700" 
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 3 : PÉNALITÉS (Rouge Intense) & LOGISTIQUE (Gris Anthracite) */}
+      <div className="grid grid-cols-2 gap-4">
+        
+        {penalties.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-slate-500 pl-1">
+              <AlertTriangle className="w-4 h-4" /> <span className="text-[10px] font-black uppercase tracking-widest">Fautes & Pertes</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {penalties.map(action => (
+                <ActionButton 
+                  key={action.type} 
+                  action={action} 
+                  colorClass="bg-rose-600 hover:bg-rose-500" 
+                  borderClass="border-rose-800 hover:border-rose-700" 
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {tactical.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-slate-500 pl-1">
+              <RefreshCw className="w-4 h-4" /> <span className="text-[10px] font-black uppercase tracking-widest">Équipe</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {tactical.map(action => (
+                <ActionButton 
+                  key={action.type} 
+                  action={action} 
+                  colorClass="bg-slate-700 hover:bg-slate-600" 
+                  borderClass="border-slate-900 hover:border-slate-800" 
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 3. PETITS BOUTONS SECONDAIRES */}
-      {secondaryActions.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-2 pt-6 border-t border-slate-700/50">
-          {secondaryActions.map(action => (
-            <button
-              key={action.type}
-              onClick={() => onActionSelect(action)}
-              className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tight transition-all active:scale-95 ${
-                pendingAction?.type === action.type ? `${action.color} text-white shadow-md` : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* 4. ZONE DES VALIDATIONS ET ANNULATIONS (En haut à droite) */}
-      {pendingAction && (
-        <div className="absolute top-4 right-4 flex gap-2">
-          {pendingAction.type === 'sub' && canConfirmSub && (
-            <button onClick={onConfirmSub} className="bg-emerald-500 hover:bg-emerald-400 text-white flex items-center gap-1 text-sm font-bold py-1 px-3 rounded-md shadow-lg transition-colors">
-              <Check className="w-4 h-4"/> VALIDER L'ÉCHANGE
-            </button>
-          )}
-          <button onClick={onCancel} className="text-slate-400 hover:text-white flex items-center gap-1 text-sm font-bold bg-slate-800/80 py-1 px-3 rounded-md transition-colors">
-            <X className="w-4 h-4"/> ANNULER
-          </button>
-        </div>
-      )}
     </div>
   );
 }

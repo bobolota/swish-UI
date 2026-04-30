@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ScoreBoard, useMatchEngine, PlayByPlay, CommandCenter, MatchTimer, StarterSelection, SPORT_CONFIGS } from '@swish/match-engine';
+import { ScoreBoard, useMatchEngine, PlayByPlay, CommandCenter, StarterSelection, SPORT_CONFIGS, MatchStatsModal } from '@swish/match-engine';
 import { TeamRosterPanel } from '@swish/roster';
 import { toast } from 'sonner';
 import { supabase } from '@swish/core'
@@ -23,6 +23,34 @@ export default function ActiveMatch() {
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
   const [subSelection, setSubSelection] = useState({ in: [], out: [] });
   const [tempStarters, setTempStarters] = useState(new Set());
+
+  // --- CHRONOMÈTRE DE TEMPS DE JEU (LIVE UI - PERSISTANT) ---
+  const [playingTimes, setPlayingTimes] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`swish_pt_${id}`);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    let interval;
+    if (isRunning && onCourtIds?.size > 0) {
+      interval = setInterval(() => {
+        setPlayingTimes(prev => {
+          const next = { ...prev };
+          onCourtIds.forEach(playerId => {
+            next[playerId] = (next[playerId] || 0) + 1;
+          });
+          // Synchronisation locale à chaque tick
+          localStorage.setItem(`swish_pt_${id}`, JSON.stringify(next));
+          return next;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRunning, onCourtIds, id]);
 
   // 2. LA CONFIGURATION
   const sportId = matchData?.tournaments?.sport_id;
@@ -161,6 +189,10 @@ export default function ActiveMatch() {
 
   const MAX_TM = currentConfig.timeoutsPerHalf || 0;
 
+  // Calcul des fautes d'équipe
+  const homeFouls = Array.from(matchData?.homeRoster || []).reduce((acc, p) => acc + (playerStats[p.id]?.fouls || 0), 0);
+  const awayFouls = Array.from(matchData?.awayRoster || []).reduce((acc, p) => acc + (playerStats[p.id]?.fouls || 0), 0);
+
   // 4. LES "EARLY RETURNS" (Après TOUS les hooks)
   if (loading) return <div className="flex justify-center items-center h-full">Chargement...</div>;
   if (!matchData) return <div className="text-center text-red-500 p-10">Match introuvable.</div>;
@@ -196,67 +228,85 @@ export default function ActiveMatch() {
   };
 
   const handlePlayerClick = (player, teamId) => {
+    // 1. PHASE DE SÉLECTION DU ROSTER DE DÉPART
     if (isSettingStarters) {
-      const isAlreadySelected = tempStarters.has(player.id);
-
-      if (isAlreadySelected) {
-        setTempStarters(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(player.id);
-          return newSet;
-        });
-      } else {
-        let playersFromThisTeamCount = 0;
-        tempStarters.forEach(id => {
-          const p = [...matchData.homeRoster, ...matchData.awayRoster].find(x => x.id === id);
-          if (p && p.team_id === teamId) playersFromThisTeamCount++;
-        });
-
-        // 👈 CORRECTION : On utilise MAX_PLAYERS
-        if (playersFromThisTeamCount >= MAX_PLAYERS) {
-          toast.error(`Vous ne pouvez pas sélectionner plus de ${MAX_PLAYERS} titulaires pour cette équipe !`);
-          return;
+      setTempStarters(prev => {
+        const newStarters = new Set(prev);
+        if (newStarters.has(player.id)) {
+          newStarters.delete(player.id);
+        } else {
+          const teamRoster = teamId === matchData.home_team_id ? matchData.homeRoster : matchData.awayRoster;
+          const teamSelectedCount = Array.from(newStarters).filter(id => 
+            teamRoster.some(p => p.id === id)
+          ).length;
+          
+          if (teamSelectedCount < MAX_PLAYERS) newStarters.add(player.id);
         }
-
-        setTempStarters(prev => {
-          const newSet = new Set(prev);
-          newSet.add(player.id);
-          return newSet;
-        });
-      }
-      return; 
+        return newStarters;
+      });
+      return;
     }
 
+    // 2. PHASE DE MATCH : EN ATTENTE D'UNE PASSE DÉCISIVE
+    if (pendingAction?.type === 'assist_selection') {
+      if (teamId !== pendingAction.teamId) return; 
+      if (player.id === pendingAction.scorerId) return;
+
+      addEvent(teamId, player.id, 'assist', 0);
+      setPendingAction(null);
+      setSelectedPlayerId(null);
+      return;
+    }
+
+    // 3. PHASE DE MATCH : ACTION DIRECTE (Sans popover)
+    if (pendingAction && pendingAction.type !== 'sub' && !pendingAction.outcomes) {
+      addEvent(teamId, player.id, pendingAction.type, pendingAction.points || 0);
+      setPendingAction(null);
+      setSelectedPlayerId(null);
+      return;
+    }
+
+    // 4. PHASE DE MATCH : REMPLACEMENT (Isolé via return)
     if (pendingAction?.type === 'sub') {
-      const isCurrentlyOnCourt = onCourtIds.has(player.id);
-      
+      const isOut = onCourtIds.has(player.id);
       setSubSelection(prev => {
-        if (isCurrentlyOnCourt) {
-          const isSelected = prev.out.includes(player.id);
-          return { ...prev, out: isSelected ? prev.out.filter(id => id !== player.id) : [...prev.out, player.id] };
+        if (isOut) {
+          return prev.out.includes(player.id) 
+            ? { ...prev, out: prev.out.filter(id => id !== player.id) }
+            : { ...prev, out: [...prev.out, player.id] };
         } else {
-          const isSelected = prev.in.includes(player.id);
-          return { ...prev, in: isSelected ? prev.in.filter(id => id !== player.id) : [...prev.in, player.id] };
+          return prev.in.includes(player.id)
+            ? { ...prev, in: prev.in.filter(id => id !== player.id) }
+            : { ...prev, in: [...prev.in, player.id] };
         }
       });
-      return; 
+      return; // 👈 Empêche l'exécution de setSelectedPlayerId juste en dessous
     }
 
-    if (!pendingAction) return; 
-
-    if (pendingAction.outcomes) {
-      setSelectedPlayerId(player.id);
-    } else {
-      addEvent(teamId, player.id, pendingAction.type, pendingAction.points);
-      setPendingAction(null);
-    }
+    // 5. PHASE DE MATCH : SÉLECTION STANDARD (Pour Popover)
+    setSelectedPlayerId(prev => prev === player.id ? null : player.id);
   };
 
   const handleActionOutcome = (player, teamId, outcome) => {
-    const finalType = `${pendingAction.type}${outcome.suffix}`;
-    addEvent(teamId, player.id, finalType, outcome.points);
-    setPendingAction(null);
-    setSelectedPlayerId(null);
+    // 1. Enregistrement officiel via le MatchEngine
+    // Concaténation du type et du suffixe (ex: '3pt' + '_made' = '3pt_made') pour matcher la configuration
+    const eventType = `${pendingAction.type}${outcome.suffix}`;
+    addEvent(teamId, player.id, eventType, outcome.points);
+
+    // 2. Mécanique de Passe Décisive conditionnelle
+    if (outcome.points > 0 && pendingAction.type !== 'free_throw') {
+      setPendingAction({
+        type: 'assist_selection',
+        scorerId: player.id,
+        teamId: teamId,
+        teamName: teamId === matchData.home_team_id ? matchData.home?.name : matchData.away?.name
+      });
+      setSelectedPlayerId(null);
+    } else {
+      // Nettoyage standard
+      setPendingAction(null);
+      setSelectedPlayerId(null);
+    }
   };
   
   const homeSelectedCount = Array.from(tempStarters).filter(id => matchData?.homeRoster?.some(p => p.id === id)).length;
@@ -282,8 +332,11 @@ export default function ActiveMatch() {
       if (player) addEvent(player.team_id, player.id, 'sub_in', 0);
     });
 
+    // Nettoyage complet des états
     setSubSelection({ in: [], out: [] });
     setPendingAction(null);
+    setSelectedPlayerId(null); // 👈 PURGE DE SÉCURITÉ AJOUTÉE ICI
+    
     toast.success("Remplacement effectué !");
   };
 
@@ -303,8 +356,10 @@ export default function ActiveMatch() {
   const handleManualEndMatch = async () => {
     if (window.confirm("Êtes-vous sûr de vouloir CLÔTURER définitivement ce match ? Cette action est irréversible.")) {
       try {
-        // 1. On clôture le match (comme avant)
         await updateMatchStatus('finished');
+        
+        // --- NOUVEAU : Purge du cache local du temps de jeu ---
+        localStorage.removeItem(`swish_pt_${id}`);
 
         // 2. NOUVEAU : LA LOGIQUE D'AVANCEMENT DANS L'ARBRE 🏆
         // On vérifie si ce match a une suite dans l'arbre (next_match_id)
@@ -345,134 +400,148 @@ export default function ActiveMatch() {
     }
   };
 
-  return (
-    <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10 pt-4"> {/* J'ai ajouté pt-4 pour aérer un peu */}
-      
-      {/* 👇 NOUVEAU BANDEAU D'EN-TÊTE 👇 */}
-      <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-        <button 
-          onClick={() => navigate(-1)} 
-          className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5" /> Retour
-        </button>
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
 
-        <button
-          onClick={() => window.open(`/matches/${id}/jumbotron`, '_blank')}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-all shadow-lg active:scale-95"
-          title="Ouvrir l'affichage public"
-        >
-          <Tv className="w-4 h-4 text-amber-400" />
-          LANCER LE JUMBOTRON
-        </button>
-      </div>
-      {/* 👆 FIN DU BANDEAU 👆 */}
+
+
+  return (
+    <div className="h-screen w-full bg-slate-100 flex flex-col overflow-hidden font-sans">
       
+      {/* 1. LE SUPER-BANDEAU */}
       <ScoreBoard 
-        time={formatTime(timeRemaining)}
-        period={periodLabel}
+        timeRemainingFormatted={formatTime(timeRemaining)}
+        isRunning={isRunning}
+        onToggleTimer={toggleTimer}
+        periodLabel={periodLabel}
         maxTimeouts={MAX_TM}
         homeTeam={{ 
-          name: matchData.home?.name || "DOMICILE", 
+          // Interception de l'objet relationnel Supabase (teams)
+          name: matchData.home_team?.name || matchData.home?.name || "ÉQUIPE 1", 
           score: homeScore, 
+          fouls: homeFouls,
           color: "bg-blue-600",
           timeoutsRemaining: Math.max(0, MAX_TM - timeoutsCount.home),
           onCallTimeout: () => handleCallTimeout(matchData.home_team_id)
         }}
         awayTeam={{ 
-          name: matchData.away?.name || "EXTÉRIEUR", 
+          // Interception de l'objet relationnel Supabase (teams)
+          name: matchData.away_team?.name || matchData.away?.name || "ÉQUIPE 2", 
           score: awayScore, 
+          fouls: awayFouls,
           color: "bg-red-600",
           timeoutsRemaining: Math.max(0, MAX_TM - timeoutsCount.away),
           onCallTimeout: () => handleCallTimeout(matchData.away_team_id)
         }}
+        onNextPeriod={handleManualNextPeriod}
+        onEndMatch={handleManualEndMatch}
+        onOpenJumbotron={() => window.open(`/matches/${id}/jumbotron`, '_blank')}
+        onOpenStats={() => setIsStatsModalOpen(true)}
       />
 
       {/* BANNIÈRE DE TEMPS MORT EN COURS */}
       {timeoutTimer !== null && (
-        <div className="bg-amber-500 text-white font-black text-3xl py-4 rounded-2xl text-center animate-pulse shadow-lg flex items-center justify-center gap-4">
+        <div className="bg-amber-500 text-white font-black text-2xl py-2 text-center animate-pulse shadow-md flex items-center justify-center gap-4 z-40 relative shrink-0">
           <span>⏳ TEMPS MORT</span>
           <span className="font-mono bg-black/20 px-4 py-1 rounded-lg">{timeoutTimer}s</span>
           <button 
             onClick={() => setTimeoutTimer(null)} 
-            className="text-sm bg-white text-amber-500 px-3 py-2 rounded-lg hover:bg-amber-50 ml-4"
+            className="text-sm bg-white text-amber-500 px-3 py-1.5 rounded-lg hover:bg-amber-50 ml-4 font-bold"
           >
             Reprendre
           </button>
         </div>
       )}
 
-      <MatchTimer 
-        isRunning={isRunning} 
-        onToggle={toggleTimer} 
-        timeRemaining={timeRemaining}
-        onNextPeriod={() => goToNextPeriod(currentConfig)}
-        onManualNext={handleManualNextPeriod}
-        onEndMatch={handleManualEndMatch}
-      />
+      {/* 2. LA ZONE DE JEU (2 ÉTAGES) */}
+      <div className="flex-1 flex flex-col overflow-hidden p-4 gap-4">
+        
+        {/* ÉTAGE HAUT : Rosters et Command Center (Hauteur fixée à 60% environ) */}
+        <div className="grid grid-cols-[1fr_280px_1fr] xl:grid-cols-[1fr_340px_1fr] gap-4 h-[55%] shrink-0">
+          
+          {/* COLONNE GAUCHE (DOMICILE) */}
+          <div className="overflow-y-auto min-w-0 pr-1">
+            <TeamRosterPanel 
+              variant="match"
+              currentConfig={currentConfig}
+              title={matchData.home?.name || "Domicile"}
+              teamId={matchData.home_team_id}
+              roster={matchData.homeRoster}
+              pendingAction={pendingAction}
+              selectedPlayerId={selectedPlayerId}
+              onPlayerClick={handlePlayerClick}
+              onActionOutcome={handleActionOutcome}
+              colorClass="text-blue-600"
+              isSettingStarters={isSettingStarters}
+              tempStarters={tempStarters}
+              onCourtIds={onCourtIds}
+              subSelection={subSelection}
+              playerStats={playerStats}
+              playingTimes={playingTimes}
+            />
+          </div>
 
-      {isSettingStarters ? (
-        <StarterSelection 
-          canStartMatch={canStartMatch}
-          onConfirm={handleConfirmStarters}
-          homeSelectedCount={homeSelectedCount}
-          awaySelectedCount={awaySelectedCount}
-          maxPlayers={MAX_PLAYERS}
-        />
-      ) : (
-        <CommandCenter 
-          actions={currentActions}
-          pendingAction={pendingAction}
-          canConfirmSub={subSelection.in.length > 0 && subSelection.in.length === subSelection.out.length}
-          onActionSelect={handleActionSelect}
-          onCancel={() => { setPendingAction(null); setSelectedPlayerId(null); setSubSelection({in:[], out:[]}); }}
-          onConfirmSub={handleConfirmSub}
-        />
-      )}
+          {/* COLONNE CENTRALE (ACTIONS UNIQUEMENT) */}
+          <div className="flex flex-col overflow-hidden h-full">
+            {isSettingStarters ? (
+              <StarterSelection 
+                canStartMatch={canStartMatch}
+                onConfirm={handleConfirmStarters}
+                homeSelectedCount={homeSelectedCount}
+                awaySelectedCount={awaySelectedCount}
+                maxPlayers={MAX_PLAYERS}
+              />
+            ) : (
+              <CommandCenter 
+                actions={currentActions}
+                pendingAction={pendingAction}
+                canConfirmSub={subSelection.in.length > 0 && subSelection.in.length === subSelection.out.length}
+                onActionSelect={handleActionSelect}
+                onCancel={() => { setPendingAction(null); setSelectedPlayerId(null); setSubSelection({in:[], out:[]}); }}
+                onConfirmSub={handleConfirmSub}
+              />
+            )}
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <TeamRosterPanel 
-          title={matchData.home?.name || "Domicile"}
-          teamId={matchData.home_team_id}
-          roster={matchData.homeRoster}
-          pendingAction={pendingAction}
-          selectedPlayerId={selectedPlayerId}
-          onPlayerClick={handlePlayerClick}
-          onActionOutcome={handleActionOutcome}
-          colorClass="text-blue-600"
-          isSettingStarters={isSettingStarters}
-          tempStarters={tempStarters}
-          onCourtIds={onCourtIds}
-          subSelection={subSelection}
+          {/* COLONNE DROITE (EXTÉRIEUR) */}
+          <div className="overflow-y-auto min-w-0 pl-1">
+            <TeamRosterPanel 
+              variant="match"
+              currentConfig={currentConfig}
+              title={matchData.away?.name || "Extérieur"}
+              teamId={matchData.away_team_id}
+              roster={matchData.awayRoster}
+              pendingAction={pendingAction}
+              selectedPlayerId={selectedPlayerId}
+              onPlayerClick={handlePlayerClick}
+              onActionOutcome={handleActionOutcome}
+              colorClass="text-red-600"
+              isSettingStarters={isSettingStarters}
+              tempStarters={tempStarters}
+              onCourtIds={onCourtIds}
+              subSelection={subSelection}
+              playerStats={playerStats}
+              playingTimes={playingTimes}
+            />
+          </div>
+        </div>
+
+        {/* ÉTAGE BAS : Play-By-Play en pleine largeur */}
+        <div className="flex-1 overflow-y-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-3 w-full">
+          <PlayByPlay 
+            events={events} 
+            onUndo={removeEvent} 
+            homeTeamId={matchData.home_team_id} 
+            currentConfig={currentConfig}
+          />
+        </div>
+
+        <MatchStatsModal 
+          isOpen={isStatsModalOpen}
+          onClose={() => setIsStatsModalOpen(false)}
+          matchData={matchData}
           playerStats={playerStats}
-          maxFouls={currentConfig.maxFouls}
-        />
+          />
 
-        <TeamRosterPanel 
-          title={matchData.away?.name || "Extérieur"}
-          teamId={matchData.away_team_id}
-          roster={matchData.awayRoster}
-          pendingAction={pendingAction}
-          selectedPlayerId={selectedPlayerId}
-          onPlayerClick={handlePlayerClick}
-          onActionOutcome={handleActionOutcome}
-          colorClass="text-red-600"
-          isSettingStarters={isSettingStarters}
-          tempStarters={tempStarters}
-          onCourtIds={onCourtIds}
-          subSelection={subSelection}
-          playerStats={playerStats}
-          maxFouls={currentConfig.maxFouls}
-        />
-      </div>
-
-      <div className="mt-4">
-        <PlayByPlay 
-          events={events} 
-          onUndo={removeEvent} 
-          homeTeamId={matchData.home_team_id} 
-          currentConfig={currentConfig}
-        />
       </div>
     </div>
   );
