@@ -8,6 +8,9 @@ export { CommandCenter } from './components/CommandCenter';
 export { MatchTimer } from './components/MatchTimer';
 export { MatchStatsModal } from './components/MatchStatsModal';
 export * from './components/StarterSelection.jsx';
+export * from './components/MatchSummary';
+
+
 
 export { SPORT_CONFIGS } from './config/sports.js';
 export { BASKETBALL_CONFIG } from './config/basketball.js';

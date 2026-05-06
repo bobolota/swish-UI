@@ -58,7 +58,7 @@ export default function ActiveMatch() {
   const MAX_PLAYERS = currentConfig.playersOnCourt; 
   const currentActions = currentConfig.actions;
 
-  // 3. LE USEMEMO (Calculateur intelligent par dictionnaire)
+  // 3. LE USEMEMO (Calculateur intelligent FIBA Exhaustif)
   const playerStats = useMemo(() => {
     const stats = {};
     if (!events || !Array.isArray(events)) return stats;
@@ -67,25 +67,29 @@ export default function ActiveMatch() {
       const pId = event.player_id || event.player?.id;
       if (!pId) return;
       
-      // On initialise le joueur
+      // Initialisation exhaustive (FIBA + Avancé)
       if (!stats[pId]) {
-        stats[pId] = { points: 0, fouls: 0, ast: 0, reb: 0, stl: 0, blk: 0 };
+        stats[pId] = { 
+          points: 0, fouls: 0, 
+          '3pt_made': 0, '3pt_miss': 0, 
+          '2pt_made': 0, '2pt_miss': 0, 
+          free_throw: 0, free_throw_miss: 0,
+          ast: 0, reb: 0, stl: 0, blk: 0, turnover: 0 
+        };
       }
       
       const type = event.event_type;
       let actionPoints = 0;
       let isFoul = false;
 
-      // 👇 NOUVEAU : On cherche la valeur de l'action directement dans la configuration !
+      // Résolution agnostique via currentConfig
       if (currentConfig && currentConfig.actions) {
         for (const action of currentConfig.actions) {
-          // Cas A : Action simple (ex: 'foul')
           if (action.type === type) {
             actionPoints = action.points || 0;
             isFoul = action.isFoul || false;
             break;
           }
-          // Cas B : Action avec issue (ex: '3pt_made')
           if (action.outcomes) {
             const matchingOutcome = action.outcomes.find(o => `${action.type}${o.suffix}` === type);
             if (matchingOutcome) {
@@ -97,15 +101,25 @@ export default function ActiveMatch() {
         }
       }
 
-      // On ajoute les vrais points trouvés dans le dictionnaire !
+      // Incrémentation des Totaux (Agnostique)
       stats[pId].points += actionPoints;
       if (isFoul) stats[pId].fouls += 1;
 
-      // Les autres stats
+      // Incrémentation du Détail (Box Score Avancée)
+      if (type === '3pt_made') stats[pId]['3pt_made'] += 1;
+      if (type === '3pt_miss') stats[pId]['3pt_miss'] += 1;
+      
+      if (type === '2pt_made') stats[pId]['2pt_made'] += 1;
+      if (type === '2pt_miss') stats[pId]['2pt_miss'] += 1;
+      
+      if (type === 'free_throw') stats[pId].free_throw += 1;
+      if (type === 'free_throw_miss') stats[pId].free_throw_miss += 1;
+      
       if (type === 'assist') stats[pId].ast += 1;
       if (type === 'def_rebound' || type === 'off_rebound') stats[pId].reb += 1;
       if (type === 'steal') stats[pId].stl += 1;
       if (type === 'block') stats[pId].blk += 1;
+      if (type === 'turnover') stats[pId].turnover += 1;
     });
     
     return stats;
@@ -163,6 +177,8 @@ export default function ActiveMatch() {
     }
   }, [timeoutTimer]);
 
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
+
   // 2. La fonction pour déclencher un temps mort
   const handleCallTimeout = (teamId) => {
     if (isRunning) toggleTimer(); // On coupe le chrono principal !
@@ -170,8 +186,7 @@ export default function ActiveMatch() {
     setTimeoutTimer(currentConfig.timeoutDuration || 60); // On lance les 60s
   };
 
-  
-  
+    
 
   // 3. On compte combien chaque équipe a pris de temps morts
   const timeoutsCount = useMemo(() => {
@@ -356,42 +371,41 @@ export default function ActiveMatch() {
   const handleManualEndMatch = async () => {
     if (window.confirm("Êtes-vous sûr de vouloir CLÔTURER définitivement ce match ? Cette action est irréversible.")) {
       try {
-        await updateMatchStatus('finished');
-        
-        // --- NOUVEAU : Purge du cache local du temps de jeu ---
+        // 1. Mise à jour du statut et sauvegarde des temps de jeu en base de données
+        await supabase
+          .from('matches')
+          .update({ 
+            status: 'finished',
+            playing_times: playingTimes, // 👈 SAUVEGARDE DES TEMPS ICI
+            home_score: homeScore,
+            away_score: awayScore
+          })
+          .eq('id', id);
+
+        // 2. Purge du cache local du temps de jeu (devenu inutile)
         localStorage.removeItem(`swish_pt_${id}`);
 
-        // 2. NOUVEAU : LA LOGIQUE D'AVANCEMENT DANS L'ARBRE 🏆
-        // On vérifie si ce match a une suite dans l'arbre (next_match_id)
+        // 3. LOGIQUE D'AVANCEMENT DANS L'ARBRE 🏆
         if (matchData?.next_match_id) {
-          
-          // Sécurité : On s'assure qu'il n'y a pas d'égalité (au basket c'est rare, mais au cas où)
           if (homeScore !== awayScore) {
-            // On trouve qui a gagné
             const winnerId = homeScore > awayScore ? matchData.home_team_id : matchData.away_team_id;
             
-           // On calcule si le gagnant va en case "Domicile" ou "Extérieur" au prochain match
+            // Calcul du slot (Domicile si index impair, Extérieur si pair)
             const isHomeSlot = matchData.bracket_index % 2 !== 0;
             const updateData = isHomeSlot ? { home_team_id: winnerId } : { away_team_id: winnerId };
 
-            console.log("Tentative d'envoi de :", updateData, " vers le match :", matchData.next_match_id);
+            console.log("🏆 Avancement tournoi : Gagnant envoyé vers le match", matchData.next_match_id);
 
-            // On envoie le vainqueur dans le match suivant directement via Supabase
-            const { data, error } = await supabase
+            const { error } = await supabase
               .from('matches')
               .update(updateData)
-              .eq('id', matchData.next_match_id)
-              .select(); // 👈 On force Supabase à nous renvoyer le résultat
+              .eq('id', matchData.next_match_id);
               
-            if (error) {
-               console.error("❌ ERREUR SUPABASE (Arbre) :", error);
-            } else {
-               console.log("✅ UPDATE RÉUSSI ! Le prochain match est maintenant :", data);
-            }
+            if (error) console.error("❌ Erreur Arbre :", error);
           }
         }
 
-        toast.success("Match terminé ! Score final scellé.");
+        toast.success("Match terminé et statistiques scellées !");
         navigate(`/matches/${id}/summary`);
       } catch (error) {
         console.error(error);
@@ -399,11 +413,7 @@ export default function ActiveMatch() {
       }
     }
   };
-
-  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
-
-
-
+  
   return (
     <div className="h-screen w-full bg-slate-100 flex flex-col overflow-hidden font-sans">
       
@@ -540,6 +550,7 @@ export default function ActiveMatch() {
           onClose={() => setIsStatsModalOpen(false)}
           matchData={matchData}
           playerStats={playerStats}
+          playingTimes={playingTimes}
           />
 
       </div>

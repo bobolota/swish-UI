@@ -72,10 +72,22 @@ export function TeamRosterPanel({
   };
 
   const DynamicStats = ({ stats, justify = 'justify-center' }) => {
-    const excludedKeys = ['points', 'fouls'];
+    // Exclusion des points, fautes et du détail des tirs pour alléger l'UI
+    const excludedKeys = ['points', 'fouls', '3pt_made', '2pt_made', 'free_throw'];
+    
+    const labelMap = {
+      'ast': 'AST',
+      'reb': 'REB',
+      'stl': 'STL',
+      'blk': 'BLK'
+    };
+
     const validStats = Object.entries(stats)
       .filter(([key, val]) => !excludedKeys.includes(key) && val > 0)
-      .map(([key, val]) => ({ label: key.substring(0, 3).toUpperCase(), val }));
+      .map(([key, val]) => ({ 
+        label: labelMap[key] || key.substring(0, 3).toUpperCase(), 
+        val 
+      }));
 
     if (validStats.length === 0) return null;
 
@@ -83,7 +95,7 @@ export function TeamRosterPanel({
       <div className={`flex gap-1 text-[8px] md:text-[9px] font-black text-slate-600 leading-none flex-wrap ${justify} mt-1.5 w-full`}>
         {validStats.map(s => (
           <span key={s.label} className="bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200 shadow-sm">
-            {s.val}{s.label[0]}
+            {s.val} {s.label}
           </span>
         ))}
       </div>
