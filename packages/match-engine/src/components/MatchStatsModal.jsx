@@ -135,7 +135,7 @@ export function MatchStatsModal({ isOpen, onClose, matchData, playerStats, playi
       {/* Header Modale - On le masque totalement en mode Inline */}
       {!isInline && (
         <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50 shrink-0">
-          <h2 className="text-xl font-black uppercase tracking-widest text-slate-800">Box Score Officielle</h2>
+          <h2 className="text-xl font-black uppercase tracking-widest text-slate-800">Box Score</h2>          
           <button 
             onClick={onClose}
             className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500 hover:text-slate-800"
@@ -146,7 +146,7 @@ export function MatchStatsModal({ isOpen, onClose, matchData, playerStats, playi
       )}
 
       {/* Corps */}
-      <div className={`overflow-y-auto flex flex-col xl:flex-row gap-6 md:gap-8 ${isInline ? 'p-0' : 'p-4 md:p-6'}`}>
+      <div className={`overflow-y-auto flex flex-col ${!isInline ? 'xl:flex-row' : ''} gap-6 md:gap-10 ${isInline ? 'p-0' : 'p-4 md:p-6'}`}>
         {renderTeamStats(
           matchData.home_team?.name || matchData.home?.name || "DOMICILE", 
           matchData.homeRoster, 
