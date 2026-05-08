@@ -1,109 +1,110 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '@swish/identity';
-import { supabase } from '@swish/core'; 
+import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Users, LayoutGrid, Calendar as CalendarIcon, Trophy as TrophyIcon, Table as TableIcon } from 'lucide-react';
+
+// On utilise le hook partagé
+import { useTournament } from '@swish/competition'; 
+
+// On importe tes composants Organisateur
 import TeamsTab from './TeamsTab';
 import PoolsTab from './PoolsTab';
 import MatchesTab from './MatchesTab';
 import { StandingsTab } from '@swish/competition';
 import { BracketTab } from './BracketTab';
 
-// 👇 1. On importe les icônes pour faire comme côté joueur
-import { Users, LayoutGrid, Calendar, Trophy, Table as TableIcon, ArrowLeft } from 'lucide-react';
-
-// 👇 2. On ajoute les icônes à notre configuration d'onglets
-const TABS = [
-  { id: 'teams', label: 'Inscriptions & Équipes', icon: Users },
-  { id: 'pools', label: 'Poules & Format', icon: LayoutGrid },
-  { id: 'schedule', label: 'Planning & Matchs', icon: Calendar },
-  { id: 'standings', label: 'Classement', icon: TableIcon },
-  { id: 'bracket', label: 'Phase Finale', icon: Trophy }
-];
+// 👇 ASTUCE : On importe le composant Hero depuis le dossier joueur (en attendant de le mettre dans un package partagé)
+import { TournamentHero } from '../../../../player-app/src/components/tournament/TournamentHero';
 
 export default function TournamentManager() {
-  const { id } = useParams(); 
+  const { id } = useParams();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
-  
-  const [tournament, setTournament] = useState(null);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'teams';
+  const [activeTab, setActiveTab] = useState('teams');
 
-  useEffect(() => {
-    async function fetchTournament() {
-      const { data } = await supabase.from('tournaments').select('*').eq('id', id).single();
-      if (data) setTournament(data);
-    }
-    if (id) fetchTournament();
-  }, [id]);
+  // RÉCUPÉRATION DES DONNÉES
+  const { tournament, loading, error } = useTournament(id);
 
-  if (!tournament) return (
-    <div className="flex items-center justify-center h-full text-slate-500 font-bold uppercase tracking-widest animate-pulse">
-      Chargement du tournoi...
-    </div>
-  );
+  if (loading) return <div className="flex justify-center items-center h-64 text-slate-400 font-bold uppercase tracking-widest animate-pulse">Chargement du tournoi...</div>;
+  if (error || !tournament) {
+    return (
+      <div className="flex flex-col justify-center items-center h-64 text-red-500 font-bold p-6 text-center">
+        <p className="text-xl uppercase tracking-widest mb-2">Tournoi introuvable</p>
+      </div>
+    );
+  }
+
+  // LES ONGLETS DE L'ORGANISATEUR
+  const tabs = [
+    { 
+      id: 'teams', 
+      label: 'Équipes', 
+      icon: Users, 
+      content: <TeamsTab tournamentId={tournament.id} /> 
+    },
+    { 
+      id: 'pools', 
+      label: 'Poules', 
+      icon: LayoutGrid, 
+      content: <PoolsTab tournamentId={tournament.id} /> 
+    },
+    { 
+      id: 'schedule', 
+      label: 'Matchs', 
+      icon: CalendarIcon, 
+      content: <MatchesTab tournamentId={tournament.id} /> 
+    },
+    { 
+      id: 'standings', 
+      label: 'Classement', 
+      icon: TableIcon, 
+      content: <StandingsTab tournamentId={tournament.id} /> 
+    },
+    { 
+      id: 'bracket', 
+      label: 'Phase Finale', 
+      icon: TrophyIcon, 
+      content: <BracketTab tournamentId={tournament.id} /> 
+    },
+  ];
 
   return (
-    // 👇 3. On uniformise les marges générales avec le côté joueur (gap-6)
-    <div className="flex flex-col gap-6 pb-10 w-full mt-2">
+    // On reprend exactement tes marges de l'application User
+    <div className="flex flex-col gap-6 pb-10 w-full px-4 sm:px-8 lg:px-12 mt-6">
       
-      {/* EN-TÊTE DU TOURNOI */}
-      <div>
-        {/* 👇 4. On utilise le même bouton "Retour" encadré que le joueur */}
-        <button 
-          onClick={() => navigate('/dashboard')} 
-          className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold w-fit transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200 mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" /> Retour au tableau de bord
-        </button>
+      {/* Bouton Retour */}
+      <button 
+        onClick={() => navigate('/dashboard')} 
+        className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold w-fit transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200"
+      >
+        <ArrowLeft className="w-4 h-4" /> Retour au Dashboard
+      </button>
 
-        <div className="flex justify-between items-end">
-          <div>
-            <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tight">{tournament.name}</h1>
-            <p className="text-slate-500 mt-1 capitalize">{tournament.sport_id} • {tournament.location}</p>
-          </div>
-          <span className="bg-slate-200 text-slate-700 px-3 py-1 rounded-md text-sm font-bold uppercase tracking-wider">
-            {tournament.status}
-          </span>
-        </div>
-      </div>
+      {/* Hero Header avec les VRAIES données */}
+      <TournamentHero tournament={tournament} isAdmin={true}/>
 
-      {/* 👇 5. LA GRANDE NOUVEAUTÉ : La carte blanche qui englobe les onglets ET le contenu */}
+      {/* Système d'Onglets (La fameuse carte blanche) */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mt-2">
-        
-        {/* NAVIGATION DES ONGLETS */}
         <div className="flex border-b border-slate-200 overflow-x-auto custom-scrollbar">
-          {TABS.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setSearchParams({ tab: tab.id })}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
-                  activeTab === tab.id 
-                    ? 'border-blue-600 text-blue-600 bg-blue-50/50' 
-                    : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-blue-600' : 'text-slate-400'}`} />
-                {tab.label}
-              </button>
-            );
-          })}
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
+                activeTab === tab.id 
+                  ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' 
+                  : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+              }`}
+            >
+              <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-indigo-600' : 'text-slate-400'}`} /> 
+              {tab.label}
+            </button>
+          ))}
         </div>
-
-        {/* AFFICHAGE DU CONTENU DE L'ONGLET ACTIF */}
-        {/* 👇 6. Le fond légèrement gris pour faire ressortir les éléments de l'onglet */}
+        
+        {/* Contenu de l'onglet actif (Avec le fond légèrement grisé) */}
         <div className="p-4 sm:p-6 md:p-8 bg-slate-50/30">
-          {activeTab === 'teams' && <TeamsTab tournamentId={id} />}
-          {activeTab === 'pools' && <PoolsTab tournamentId={id} />}
-          {activeTab === 'schedule' && <MatchesTab tournamentId={id} />}
-          {activeTab === 'standings' && <StandingsTab tournamentId={id} />}
-          {activeTab === 'bracket' && <BracketTab tournamentId={id} />}
+          {tabs.find(t => t.id === activeTab)?.content}
         </div>
-
       </div>
-
     </div>
   );
 }

@@ -31,10 +31,12 @@ function AdminTeamPage() {
   const navigate = useNavigate();
   
   return (
-    <div className="max-w-7xl mx-auto w-full w-full">
+    // ✅ On retire max-w-7xl et mx-auto pour laisser le Hero s'étirer
+    <div className="w-full">
       <button 
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold mb-8 transition-colors"
+        // On ajoute un peu de padding horizontal au bouton pour qu'il ne colle pas au bord gauche
+        className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold mb-8 transition-colors px-4 md:px-8 mt-4"
       >
         <ArrowLeft className="w-5 h-5" />
         Retour au Tournoi

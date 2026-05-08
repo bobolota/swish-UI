@@ -8,7 +8,9 @@ export default function TeamPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="flex flex-col gap-6 pb-10 w-full px-4 sm:px-8 lg:px-12 mt-6">
+    // ✅ On enlève le padding px-4/sm:px-8/lg:px-12 et le mt-6 
+    // pour laisser le TeamProfile s'étirer via ses marges négatives
+    <div className="flex flex-col gap-6 pb-10 w-full">
       
       <button 
         onClick={() => navigate(-1)} 
@@ -17,7 +19,8 @@ export default function TeamPage() {
         <ArrowLeft className="w-4 h-4" /> Retour
       </button>
 
-      {/* On passe l'ID et les fonctions de navigation spécifiques au lecteur */}
+      {/* TeamProfile va maintenant coller aux bords grâce à ses marges négatives 
+          car son parent direct (cette div) n'a plus de padding horizontal */}
       <TeamProfile 
         teamId={id} 
         onPlayerClick={(playerId) => navigate(`/player/${playerId}`)}
@@ -25,5 +28,5 @@ export default function TeamPage() {
       />
       
     </div>
-  );
+);
 }

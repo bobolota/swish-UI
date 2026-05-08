@@ -46,11 +46,10 @@ export function TournamentMatchesTab({ tournamentId }) {
 
   // --- LOGIQUE DE FILTRAGE ---
   const filteredMatches = matches.filter(m => {
-    // 👇 1. NOUVEAU : On cache les matchs qui n'ont pas encore leurs deux équipes (Phase finale en attente)
     if (!m.home_team_id || !m.away_team_id) {
-      return false; 
-    }
-
+    return false; 
+  }
+    
     // 2. L'ancien filtre "Mes matchs / Tous les matchs"
     if (filter === 'mine' && myTeamId) {
       return m.home_team_id === myTeamId || m.away_team_id === myTeamId;
@@ -61,7 +60,7 @@ export function TournamentMatchesTab({ tournamentId }) {
 
   // --- CATÉGORISATION DES MATCHS ---
   const liveMatches = filteredMatches.filter(m => m.status === 'paused' || m.status === 'live');
-  const upcomingMatches = filteredMatches.filter(m => m.status === 'idle');
+  const upcomingMatches = filteredMatches.filter(m => m.status === 'idle' || m.status === 'scheduled');
   const finishedMatches = filteredMatches.filter(m => m.status === 'finished');
 
   return (

@@ -68,8 +68,8 @@ export default function TournamentExplorer({ userId }) {
   // --- COMPOSANT CARTE RÉUTILISABLE ---
   const TournamentCard = ({ tournament, isMine }) => (
     <Card
-    onClick={() => navigate(`/t/${tournament.id}`)}
-     className="p-4 mb-4 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden">
+  onClick={() => navigate(`/tournament/${tournament.id}`)}
+  className="p-4 mb-4 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden">
       {isMine && (
         <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg">
           Inscrit

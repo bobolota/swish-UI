@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 // 👇 1. On importe le vrai système d'authentification !
 import { useAuth } from '@swish/identity'; 
@@ -13,45 +13,53 @@ import { MatchSummary } from '@swish/match-engine';
 import TeamPage from './pages/TeamPage';
 
 function App() {
-  // 👇 2. On récupère le vrai utilisateur connecté et la fonction de déconnexion
   const { user, signOut } = useAuth(); 
 
   return (
     <BrowserRouter>
-      {/* On passe les vraies données au Layout (pour afficher l'avatar en haut à droite) */}
       <PlayerLayout user={user} logout={signOut}>
         <Routes>
-          {/* 1. Explorateur de Tournois (Accueil public) */}
-          {/* On lui passe l'ID de l'utilisateur. S'il n'est pas connecté, ça passera "undefined" et c'est très bien ! */}
-          <Route path="/" element={<TournamentExplorer userId={user?.id} />} />
+          {/* ✅ ACCUEIL : On redirige la racine vers /tournaments pour plus de clarté */}
+          <Route path="/" element={<Navigate to="/tournaments" replace />} />
 
-          {/* 2. Hub du Tournoi (Classement, Bracket, etc.) */}
-          <Route path="/t/:id" element={<TournamentDetails />} />
+          {/* ✅ EXPLORATEUR : On utilise l'URL /tournaments (celle de ta Sidebar) */}
+          <Route path="/tournaments" element={<TournamentExplorer userId={user?.id} />} />
 
-          {/* 3. Match Center (Box Score & Play-by-Play en mode ReadOnly) */}
+          {/* ✅ HUB DU TOURNOI : Attention, tes cartes font navigate(`/tournament/${id}`) 
+              On utilise donc /tournament/:id (sans le "t") pour que ça marche partout */}
+          <Route path="/tournament/:id" element={<TournamentDetails />} />
+
+          {/* 3. Match Center */}
           <Route path="/match/:id" element={<MatchSummary />} />
 
-          {/* 4. Profil Joueur (Stats & Palmarès) */}
+          {/* 4. Profil Joueur */}
           <Route path="/player/:id" element={
             <div className="p-10 text-center text-slate-500 font-bold uppercase tracking-widest">
               Profil Joueur (En construction)
             </div>
           } />
 
-          {/* 5. Profil Équipe (Roster) */}
+          {/* 5. Profil Équipe */}
           <Route path="/team/:id" element={<TeamPage />} />
 
-          {/* 6. Espace Personnel (Mes équipes, Mes invitations) */}
-          <Route path="/me" element={
+          {/* ✅ 6. MES ÉQUIPES : Nouvelle route pour le lien de ta Sidebar */}
+          <Route path="/my-teams" element={
             <div className="p-10 text-center text-slate-500 font-bold uppercase tracking-widest">
-              Mon Espace Personnel (En construction)
+              Mes Équipes (En construction - Prochaine étape !)
             </div>
           } />
 
-          {/* 7. Annuaire des joueurs / Recherche */}
-          <Route path="/search" element={
+          {/* 7. INVITATIONS : Nouvelle route pour le lien de ta Sidebar */}
+          <Route path="/invitations" element={
             <div className="p-10 text-center text-slate-500 font-bold uppercase tracking-widest">
-              Recherche de Joueurs (En construction)
+              Mes Invitations (En construction)
+            </div>
+          } />
+
+          {/* 8. PROFIL PERSONNEL */}
+          <Route path="/profile" element={
+            <div className="p-10 text-center text-slate-500 font-bold uppercase tracking-widest">
+              Mon Profil (En construction)
             </div>
           } />
         </Routes>

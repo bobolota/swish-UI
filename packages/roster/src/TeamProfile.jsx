@@ -74,7 +74,7 @@ const { data: matchesData } = await supabase
   console.log("--- DEBUG MATCHES ---", matches);
 
   return (
-    <div className="flex flex-col gap-6 w-full">
+    <div className="flex flex-col gap-6 w-full pb-10">
       {/* HERO HEADER */}
       <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
