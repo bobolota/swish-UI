@@ -8,3 +8,4 @@ export { useTournamentTeams } from './useTournamentTeams';
 export * from './useTournamentPools';
 export * from './useTournamentMatches';
 export * from './TournamentBracket';
+export * from './StandingsTab';

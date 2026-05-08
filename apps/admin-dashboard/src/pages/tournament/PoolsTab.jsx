@@ -3,9 +3,11 @@ import { useTournamentPools } from '@swish/competition';
 import { KanbanBoard, Button, Input, Card } from '@swish/ui';
 import { Plus, Shuffle, Users, Trash2, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 export default function PoolsTab({ tournamentId }) {
-  const { pools, teams, isLoading, createPool, assignTeamToPool, deletePool, resetAllPools, generatePoolsAndDistribute } = useTournamentPools(tournamentId);
+  const navigate = useNavigate();
+  const { pools, teams, isLoading, createPool, assignTeamToPool, deletePool, resetAllPools, generatePoolsAndDistribute, renamePool } = useTournamentPools(tournamentId);
   const [newPoolName, setNewPoolName] = useState("");
   const [autoPoolCount, setAutoPoolCount] = useState(4);
   const hasUnassignedTeams = teams.some(t => !t.poolId);
@@ -178,7 +180,9 @@ export default function PoolsTab({ tournamentId }) {
             items={kanbanItems}
             onStatusChange={handleStatusChange}
             renderCard={(team) => (
-              <Card className="p-3 mb-2 cursor-grab active:cursor-grabbing border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow bg-white">
+              <Card 
+              onDoubleClick={() => navigate(`/team/${team.teamId || team.id}`)}
+              className="p-3 mb-2 cursor-grab active:cursor-grabbing border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow bg-white" >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-bold text-slate-800">{team.name}</p>

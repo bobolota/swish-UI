@@ -63,10 +63,10 @@ export default function PlayerLayout({ children, user, logout }) {
         />
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="w-full max-w-[1600px] mx-auto">
-            {children}
-          </div>
-        </div>
+  <div className="w-full h-full"> {/* h-full optionnel selon ton design */}
+    {children}
+  </div>
+</div>
       </main>
     </div>
   );

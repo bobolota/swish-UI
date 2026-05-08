@@ -2,53 +2,53 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@swish/core';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@swish/ui';
 
-export function StandingsTab({ tournamentId }) {
+export function StandingsTab({ tournamentId, readOnly = false, onTeamClick }) {
   const [data, setData] = useState({ pools: [], matches: [], teams: [] });
   const [isLoading, setIsLoading] = useState(true);
   
-  // 👇 AU LIEU DE : const [qualifiersByPool, setQualifiersByPool] = useState({}); 👇
-  const [qualifiersByPool, setQualifiersByPool] = useState(() => {
-    // On essaie de récupérer les réglages sauvegardés pour CE tournoi
-    const saved = localStorage.getItem(`qualifiers-${tournamentId}`);
-    return saved ? JSON.parse(saved) : {};
+  // ✅ À METTRE À LA PLACE :
+
+// Nouvelle fonction qui sauvegarde directement dans Supabase
+const handleQualifiersChange = async (poolId, value) => {
+  // 1. On met à jour l'affichage immédiatement
+  setData(prev => ({
+    ...prev,
+    pools: prev.pools.map(p => p.id === poolId ? { ...p, qualifiers_count: value } : p)
+  }));
+
+  // 2. On sauvegarde dans la base de données pour les joueurs
+  await supabase
+    .from('pools')
+    .update({ qualifiers_count: value })
+    .eq('id', poolId);
+};
+
+const POINTS = { win: 3, draw: 1, loss: 0 };
+
+useEffect(() => {
+  const fetchData = async () => {
+  setIsLoading(true);
+  
+  const [poolsRes, matchesRes, teamsRes] = await Promise.all([
+    supabase.from('pools').select('id, name, qualifiers_count').eq('tournament_id', tournamentId),
+    supabase.from('matches').select('*').eq('tournament_id', tournamentId).not('home_score', 'is', null),
+    supabase.from('teams').select('id, name')
+  ]);
+
+  // Debug pour voir si les données arrivent bien (à enlever après)
+  console.log("Pools reçues:", poolsRes.data);
+
+  setData({
+    pools: poolsRes.data || [],
+    matches: matchesRes.data || [],
+    teams: teamsRes.data || []
   });
+  
+  setIsLoading(false);
+};
 
-  const handleQualifiersChange = (poolId, value) => {
-    setQualifiersByPool(prev => {
-      // On calcule le nouveau réglage
-      const newState = { ...prev, [poolId]: value };
-      
-      // On le sauvegarde physiquement dans le navigateur
-      localStorage.setItem(`qualifiers-${tournamentId}`, JSON.stringify(newState));
-      
-      return newState;
-    });
-  };
-
-  // --- PARAMÈTRES DU CLASSEMENT ---
-  const POINTS = { win: 3, draw: 1, loss: 0 };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      
-      const [poolsRes, matchesRes, teamsRes] = await Promise.all([
-        supabase.from('pools').select('id, name').eq('tournament_id', tournamentId),
-        supabase.from('matches').select('*').eq('tournament_id', tournamentId).not('home_score', 'is', null),
-        supabase.from('teams').select('id, name')
-      ]);
-
-      setData({
-        pools: poolsRes.data || [],
-        matches: matchesRes.data || [],
-        teams: teamsRes.data || []
-      });
-      
-      setIsLoading(false);
-    };
-
-    if (tournamentId) fetchData();
-  }, [tournamentId]);
+  if (tournamentId) fetchData();
+}, [tournamentId]);
 
   // --- LE MOTEUR DE CALCUL ---
   const standingsByPool = useMemo(() => {
@@ -122,9 +122,10 @@ export function StandingsTab({ tournamentId }) {
   if (isLoading) return <div className="p-8 text-center text-slate-500">Calcul des classements...</div>;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">     
-      {Object.entries(standingsByPool).map(([poolId, poolData]) => {
-        const currentQualifiers = qualifiersByPool[poolId] ?? 2;
+  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">     
+    {Object.entries(standingsByPool).map(([poolId, poolData]) => {
+        const originalPool = data.pools.find(p => p.id === poolId);
+        const currentQualifiers = originalPool?.qualifiers_count ?? 2;
 
         return (
           <div key={poolId} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -132,6 +133,7 @@ export function StandingsTab({ tournamentId }) {
             <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="font-bold text-slate-800 text-lg">Classement - {poolData.name}</h3>
               
+              {!readOnly && (
               <div className="flex items-center gap-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Qualifiés :</label>
                 <select 
@@ -146,6 +148,7 @@ export function StandingsTab({ tournamentId }) {
                   <option value={4}>4</option>
                 </select>
               </div>
+              )}
             </div>
             
             <Table>
@@ -185,7 +188,9 @@ export function StandingsTab({ tournamentId }) {
                         <TableCell className={`text-center font-medium text-slate-500 ${isQualified ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-transparent'}`}>
                           {index + 1}
                         </TableCell>
-                        <TableCell className="font-bold">{team.name}</TableCell>
+                        <TableCell 
+                          className="font-bold cursor-pointer"
+                          onClick={() => onTeamClick && onTeamClick(team.team_id || team.id)} > {team.name} </TableCell>
                         <TableCell className="text-center text-slate-600">{team.played}</TableCell>
                         <TableCell className="text-center text-emerald-600 font-medium">{team.won}</TableCell>
                         <TableCell className="text-center text-slate-400 font-medium">{team.drawn}</TableCell>

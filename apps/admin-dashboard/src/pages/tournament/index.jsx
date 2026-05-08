@@ -6,7 +6,7 @@ import { supabase } from '@swish/core';
 import TeamsTab from './TeamsTab';
 import PoolsTab from './PoolsTab';
 import MatchesTab from './MatchesTab';
-import { StandingsTab } from './StandingsTab';
+import { StandingsTab } from '@swish/competition';
 import { BracketTab } from './BracketTab';
 
 // Les onglets disponibles
@@ -40,13 +40,13 @@ export default function TournamentManager() {
   }, [id]);
 
   if (!tournament) return (
-    <AdminLayout user={user} logout={logout}>
+    
       <div className="flex items-center justify-center h-full text-slate-500 font-bold">Chargement du tournoi...</div>
-    </AdminLayout>
+    
   );
 
   return (
-    <AdminLayout user={user} logout={logout}>
+    
       <div className="flex flex-col h-full">
         
         {/* EN-TÊTE DU TOURNOI */}
@@ -94,6 +94,6 @@ export default function TournamentManager() {
         </div>
 
       </div>
-    </AdminLayout>
+    
   );
 }

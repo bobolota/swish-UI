@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@swish/core';
 import { Card, Button } from '@swish/ui';
 import { Search, MapPin, Calendar, Trophy, Users, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function TournamentExplorer({ userId }) {
+  const navigate = useNavigate();
   const [tournaments, setTournaments] = useState([]);
   const [myRegistrations, setMyRegistrations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -12,24 +14,27 @@ export default function TournamentExplorer({ userId }) {
   const [finishedTab, setFinishedTab] = useState('all'); // 'all' ou 'mine'
 
   useEffect(() => {
-    // 🚧 Simulation de chargement des données depuis Supabase
-    // Il faudra adapter selon tes vraies tables (tournaments, registrations...)
     const fetchTournaments = async () => {
       setIsLoading(true);
       
-      // 1. Récupérer tous les tournois
+      // 1. On récupère toujours tous les tournois (Public)
       const { data: allTournaments } = await supabase
         .from('tournaments')
         .select('*')
         .order('created_at', { ascending: false });
 
-      // 2. Récupérer les IDs des tournois où l'utilisateur est inscrit
-      const { data: userRegs } = await supabase
-        .from('tournament_registrations') // Adapte le nom de ta table
-        .select('tournament_id')
-        .eq('user_id', userId);
+      // 2. On ne cherche les inscriptions QUE si l'utilisateur est connecté
+      let registeredIds = [];
+      if (userId) {
+        const { data: userRegs } = await supabase
+          .from('tournament_registrations')
+          .select('tournament_id')
+          .eq('user_id', userId);
 
-      const registeredIds = userRegs?.map(reg => reg.tournament_id) || [];
+        if (userRegs) {
+          registeredIds = userRegs.map(reg => reg.tournament_id);
+        }
+      }
 
       setTournaments(allTournaments || []);
       setMyRegistrations(registeredIds);
@@ -53,7 +58,7 @@ export default function TournamentExplorer({ userId }) {
 
   // 3. En cours (Et je n'y suis pas)
   const inProgressTournaments = tournaments.filter(t => 
-    t.status === 'in_progress' && !myRegistrations.includes(t.id)
+    t.status === 'live' && !myRegistrations.includes(t.id)
   );
 
   // --- FILTRES DE L'HISTORIQUE (Terminés) ---
@@ -62,7 +67,9 @@ export default function TournamentExplorer({ userId }) {
 
   // --- COMPOSANT CARTE RÉUTILISABLE ---
   const TournamentCard = ({ tournament, isMine }) => (
-    <Card className="p-4 mb-4 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden">
+    <Card
+    onClick={() => navigate(`/t/${tournament.id}`)}
+     className="p-4 mb-4 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden">
       {isMine && (
         <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg">
           Inscrit

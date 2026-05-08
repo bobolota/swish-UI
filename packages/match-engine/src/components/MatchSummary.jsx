@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useMatchEngine, PlayByPlay, SPORT_CONFIGS, MatchStatsModal } from '@swish/match-engine';
+import { useMatchEngine } from "../useMatchEngine";
+import { PlayByPlay } from "./PlayByPlay";
+import { SPORT_CONFIGS } from "../config/sports";
+import { MatchStatsModal } from './MatchStatsModal';
 import { ChevronLeft, Printer, Share2 } from 'lucide-react';
 
 export default function MatchSummary() {

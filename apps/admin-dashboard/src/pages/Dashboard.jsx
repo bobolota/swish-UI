@@ -47,8 +47,7 @@ export default function Dashboard() {
     if (user?.id) fetchManagedTournaments();
   }, [user?.id, fetchManagedTournaments]);
 
-  return (
-    <AdminLayout user={user} logout={logout}>
+  return (    
      <div className="space-y-8 flex-1 flex flex-col">
         
         <div className="flex items-center justify-between">
@@ -136,6 +135,6 @@ export default function Dashboard() {
       )}    
 
       </div>
-    </AdminLayout>
+    
   );
 }

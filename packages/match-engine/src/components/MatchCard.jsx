@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '@swish/ui'; 
 import { Clock, MapPin, Trash2, Edit3, User, ClipboardList, Check, X } from 'lucide-react';
 
-export function MatchCard({ match, profiles = [], onSaveScore, onClick, onDelete, onEdit, teams = [] }) {
+export function MatchCard({ match, profiles = [], onSaveScore, onClick, onDelete, onEdit, teams = [], readOnly = false }) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [localHomeScore, setLocalHomeScore] = useState(match.home_score ?? '');
@@ -121,10 +121,7 @@ export function MatchCard({ match, profiles = [], onSaveScore, onClick, onDelete
 
       </div>
 
-      {/* Corps : Les Équipes et le Score */}
-      <div className="space-y-3 mb-2">
-        
-        {/* Équipe Domicile */}
+      {/* Équipe Domicile */}
         <div className="flex justify-between items-center">
           <span className={`font-bold truncate pr-4 ${!isEditing && match.home_score > match.away_score ? 'text-slate-900' : 'text-slate-600'}`}>
             {displayHomeTeam}
@@ -132,17 +129,24 @@ export function MatchCard({ match, profiles = [], onSaveScore, onClick, onDelete
           {isEditing ? (
             <input 
               type="number" 
-              value={localHomeScore}
+              value={localHomeScore}                        
               onChange={(e) => setLocalHomeScore(e.target.value)}
-              onClick={(e) => e.stopPropagation()} // 👈 Bloque le clic pour l'input
+              onClick={(e) => e.stopPropagation()}
+              disabled={readOnly}
               className="w-16 text-xl font-black text-center text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               autoFocus
             />
           ) : (
             <span 
-              onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} // 👈 StopPropagation ici aussi
-              className="text-xl font-black text-slate-800 bg-slate-50 px-3 py-1 rounded-lg min-w-[3rem] text-center hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-              title="Cliquez pour modifier"
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                if (!readOnly) setIsEditing(true); // 👈 Bloque le passage en édition si readOnly
+              }}
+              // 👇 Conditionne les classes de hover et le pointeur selon readOnly
+              className={`text-xl font-black text-slate-800 bg-slate-50 px-3 py-1 rounded-lg min-w-[3rem] text-center transition-colors
+                ${readOnly ? 'cursor-default' : 'hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer'}
+              `}
+              title={readOnly ? undefined : "Cliquez pour modifier"} // 👈 Cache le tooltip en lecture seule
             >
               {match.home_score ?? '-'}
             </span>
@@ -150,32 +154,38 @@ export function MatchCard({ match, profiles = [], onSaveScore, onClick, onDelete
         </div>
 
         {/* Équipe Extérieur */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mt-2">
           <span className={`font-bold truncate pr-4 ${!isEditing && match.away_score > match.home_score ? 'text-slate-900' : 'text-slate-600'}`}>
             {displayAwayTeam}
           </span>
           {isEditing ? (
             <input 
               type="number" 
-              value={localAwayScore}
+              value={localAwayScore}              
               onChange={(e) => setLocalAwayScore(e.target.value)}
-              onClick={(e) => e.stopPropagation()} // 👈 Bloque le clic pour l'input
+              onClick={(e) => e.stopPropagation()}
+              disabled={readOnly}
               className="w-16 text-xl font-black text-center text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           ) : (
             <span 
-              onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} // 👈 StopPropagation ici aussi
-              className="text-xl font-black text-slate-800 bg-slate-50 px-3 py-1 rounded-lg min-w-[3rem] text-center hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-              title="Cliquez pour modifier"
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                if (!readOnly) setIsEditing(true); // 👈 Bloque le passage en édition si readOnly
+              }}
+              className={`text-xl font-black text-slate-800 bg-slate-50 px-3 py-1 rounded-lg min-w-[3rem] text-center transition-colors
+                ${readOnly ? 'cursor-default' : 'hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer'}
+              `}
+              title={readOnly ? undefined : "Cliquez pour modifier"} // 👈 Cache le tooltip
             >
               {match.away_score ?? '-'}
             </span>
           )}
         </div>
-      </div>
 
       {/* BARRE D'ACTION ÉDITION */}
-      {isEditing && (
+      {/* 👇 1. On cache si readOnly. 2. On affiche SI isEditing (j'ai enlevé le '!') 👇 */}
+      {!readOnly && isEditing && (
         <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end gap-2 animate-in fade-in slide-in-from-top-2">
           <button 
             onClick={handleCancel}
@@ -213,7 +223,8 @@ export function MatchCard({ match, profiles = [], onSaveScore, onClick, onDelete
       )}
 
       {/* Boutons d'Action Rapide */}
-      {!isEditing && (
+      {/* 👇 On ajoute !readOnly ici 👇 */}
+      {!readOnly && !isEditing && (
         <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all z-10">
           <button 
             onClick={(e) => { 
